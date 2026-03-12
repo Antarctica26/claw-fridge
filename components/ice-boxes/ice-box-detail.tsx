@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { readApiPayload, toOperationNotice, toRequestFailureNotice, type OperationNotice } from "@/lib/api-client";
 import { useMounted } from "@/hooks/use-mounted";
 import { isEncryptionEnabled } from "@/lib/backup-encryption";
+import { getIceBoxHistory } from "@/lib/git-client";
 import {
   calculateIceBoxReminderSnapshot,
   getIceBoxReminderPresetMeta,
@@ -255,30 +256,42 @@ export function IceBoxDetail({ id }: { id: string }) {
     setHistoryError(null);
 
     try {
-      const response = await fetch(`/api/ice-boxes/${targetIceBoxId}/history`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          machineId,
-          branch,
-          gitConfig,
-          limit: 20,
-        }),
-      });
-      const result = await readApiPayload<IceBoxHistoryResult>(response);
+      let entries: IceBoxHistoryEntry[];
 
-      if (!response.ok || !result.ok) {
-        setHistoryEntries([]);
-        setHistoryError(toOperationNotice(result, "读取备份历史失败。"));
-        setHasLoadedHistory(true);
-        return;
+      try {
+        entries = await getIceBoxHistory(gitConfig, machineId);
+      } catch (frontendError) {
+        if (!shouldFallbackToServer(frontendError)) {
+          throw frontendError;
+        }
+
+        const response = await fetch(`/api/ice-boxes/${targetIceBoxId}/history`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            machineId,
+            branch,
+            gitConfig,
+            limit: 20,
+          }),
+        });
+        const result = await readApiPayload<IceBoxHistoryResult>(response);
+
+        if (!response.ok || !result.ok) {
+          setHistoryEntries([]);
+          setHistoryError(toOperationNotice(result, "读取备份历史失败。"));
+          setHasLoadedHistory(true);
+          return;
+        }
+
+        entries = result.entries ?? [];
       }
 
-      const latestBackupAt = result.entries?.[0]?.committedAt ?? null;
+      const latestBackupAt = entries[0]?.committedAt ?? null;
 
-      setHistoryEntries(result.entries ?? []);
+      setHistoryEntries(entries);
       setHistoryError(null);
       setHasLoadedHistory(true);
       syncIceBoxBackupState(targetIceBoxId, latestBackupAt);
@@ -287,7 +300,7 @@ export function IceBoxDetail({ id }: { id: string }) {
           return null;
         }
 
-        return (result.entries ?? []).find((entry) => entry.commit === currentEntry.commit) ?? null;
+        return entries.find((entry) => entry.commit === currentEntry.commit) ?? null;
       });
     } catch (actionError) {
       setHistoryEntries([]);

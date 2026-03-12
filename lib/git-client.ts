@@ -13,6 +13,7 @@ import type {
   IceBoxListItem,
   IceBoxRecord,
   IceBoxSyncResult,
+  IceBoxHistoryEntry,
 } from "@/types";
 
 const gitCommitAuthorName = "Claw Fridge";
@@ -53,6 +54,28 @@ function formatErrorMessage(error: unknown) {
   }
 
   return String(error || "未知错误");
+}
+
+export class FrontendGitFallbackError extends Error {
+  details?: string;
+
+  constructor(message: string, options?: { details?: string; cause?: unknown }) {
+    super(message, options?.cause ? { cause: options.cause } : undefined);
+    this.name = "FrontendGitFallbackError";
+    this.details = options?.details;
+  }
+}
+
+export function shouldFallbackToServer(error: unknown) {
+  return error instanceof FrontendGitFallbackError;
+}
+
+function buildFrontendFallbackError(repository: string, error: unknown) {
+  const classified = classifyGitError(repository, error);
+  return new FrontendGitFallbackError(classified.message, {
+    details: classified.details,
+    cause: error,
+  });
 }
 
 function classifyGitError(repository: string, error: unknown) {
@@ -719,4 +742,81 @@ export async function syncIceBoxBranch(
     syncedAt,
     iceBoxId,
   };
+}
+
+function buildIceBoxBranch(iceBoxId: string) {
+  return `${iceBoxBranchPrefix}/${iceBoxId}`;
+}
+
+async function loadIceBoxBranchRepo(config: GitRepositoryConfig, iceBoxId: string) {
+  const { fs, dir } = await prepareRepoDir(config.repository);
+  const onAuth = getAuthCallback(config);
+  const branch = buildIceBoxBranch(iceBoxId);
+
+  const branchExists = await git
+    .listServerRefs({
+      http,
+      url: config.repository,
+      onAuth,
+      protocolVersion: 2,
+      prefix: `refs/heads/${branch}`,
+    })
+    .then((refs) => refs.some((ref) => ref.ref === `refs/heads/${branch}`));
+
+  if (!branchExists) {
+    throw new Error(`冰盒分支 ${branch} 不存在，请先创建冰盒。`);
+  }
+
+  await git.clone({
+    fs,
+    http,
+    dir,
+    url: config.repository,
+    ref: branch,
+    singleBranch: true,
+    depth: 20,
+    onAuth,
+  });
+
+  await git.checkout({ fs, dir, ref: branch, force: true });
+
+  return { fs, dir, onAuth, branch, branchExists };
+}
+
+export async function getIceBoxHistory(
+  input: GitRepositoryConfig,
+  iceBoxId: string,
+): Promise<IceBoxHistoryEntry[]> {
+  const config = withStoredCredentials(input);
+  const unsupported = requireRemoteHttps(config);
+  if (unsupported) {
+    throw new FrontendGitFallbackError(unsupported.message, {
+      details: unsupported.details,
+    });
+  }
+
+  try {
+    const { fs, dir, branch } = await loadIceBoxBranchRepo(config, iceBoxId);
+    const commits = await git.log({ fs, dir, ref: branch, depth: 20 });
+
+    return commits.map((entry) => ({
+      branch,
+      commit: entry.oid,
+      summary: entry.commit.message.split("\n")[0] ?? "",
+      message: entry.commit.message,
+      committedAt: entry.commit.committer.timestamp
+        ? new Date(entry.commit.committer.timestamp * 1000).toISOString()
+        : new Date().toISOString(),
+      authorName: entry.commit.author.name ?? "Unknown",
+      authorEmail: entry.commit.author.email ?? null,
+    }));
+  } catch (error) {
+    const classified = classifyGitError(config.repository, error);
+
+    if (classified.message.includes("浏览器模式暂不支持") || classified.message.includes("浏览器无法直接访问")) {
+      throw buildFrontendFallbackError(config.repository, error);
+    }
+
+    throw new Error(classified.details || classified.message);
+  }
 }
