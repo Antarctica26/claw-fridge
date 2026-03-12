@@ -5,6 +5,7 @@ import {
   SkillDocumentError,
   createSkillDocumentModel,
   parseIncludeGitCredentialsSearchParam,
+  parseOptionalSkillCredentialSearchParam,
   parseSkillConfigSearchParam,
   parseSkillDocumentModeSearchParam,
 } from "@/lib/skill-document";
@@ -63,9 +64,15 @@ export default async function SkillPage({
     const skillConfig = parseSkillConfigSearchParam(params.config);
     const mode = parseSkillDocumentModeSearchParam(params.mode);
     const includeGitCredentials = parseIncludeGitCredentialsSearchParam(params.includeGitCredentials);
+    const gitUsername = parseOptionalSkillCredentialSearchParam(params.gitUsername);
+    const gitToken = parseOptionalSkillCredentialSearchParam(params.gitToken);
+    const gitPrivateKeyPath = parseOptionalSkillCredentialSearchParam(params.gitPrivateKeyPath);
     model = createSkillDocumentModel(skillConfig, origin, {
       mode,
       includeGitCredentials,
+      gitUsername,
+      gitToken,
+      gitPrivateKeyPath,
     });
   } catch (error) {
     if (error instanceof SkillDocumentError) {

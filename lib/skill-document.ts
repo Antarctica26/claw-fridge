@@ -32,6 +32,9 @@ export type SkillDocumentMode = "backup" | "restore";
 export interface SkillDocumentOptions {
   mode?: SkillDocumentMode;
   includeGitCredentials?: boolean;
+  gitUsername?: string | null;
+  gitToken?: string | null;
+  gitPrivateKeyPath?: string | null;
 }
 
 export interface SkillDocumentModel {
@@ -162,6 +165,17 @@ export function parseIncludeGitCredentialsSearchParam(value: SearchParamValue): 
   const rawValue = readFirstSearchParamValue(value)?.trim().toLowerCase();
 
   return rawValue === "1" || rawValue === "true" || rawValue === "yes" || rawValue === "on";
+}
+
+export function parseOptionalSkillCredentialSearchParam(value: SearchParamValue): string | null {
+  const rawValue = readFirstSearchParamValue(value);
+
+  if (typeof rawValue !== "string") {
+    return null;
+  }
+
+  const normalizedValue = rawValue.trim();
+  return normalizedValue || null;
 }
 
 function toSkillNameSegment(value: string): string {
@@ -414,7 +428,7 @@ function buildCredentialPlaceholderSection(config: IceBoxSkillConfig): string[] 
     return [
       "## Git 凭证占位符",
       "",
-      "这个 Skill 不直接内嵌真实凭证，只提供占位符模板。安装到 OpenClaw 后，请立刻替换成当前机器自己的值：",
+      "这个 Skill 会优先带上当前页面传入的 Git 凭证；如果没有传入真实值，则保留占位符模板。安装到 OpenClaw 后，请立刻确认并替换成当前机器自己的值：",
       "- `__CLAW_FRIDGE_GIT_USERNAME__`：Git 用户名。",
       "- `__CLAW_FRIDGE_GIT_TOKEN__`：HTTPS Token / PAT / 密码。",
       "- 推荐替换命令：`perl -0pi -e 's/__CLAW_FRIDGE_GIT_USERNAME__/你的用户名/g; s/__CLAW_FRIDGE_GIT_TOKEN__/你的令牌/g' ~/.openclaw/skills/<skill-name>/SKILL.md`",
@@ -434,7 +448,7 @@ function buildCredentialPlaceholderSection(config: IceBoxSkillConfig): string[] 
     return [
       "## Git 凭证占位符",
       "",
-      "这个 Skill 不直接内嵌真实凭证，只提供占位符模板。安装到 OpenClaw 后，请立刻替换成当前机器自己的值：",
+      "这个 Skill 会优先带上当前页面传入的 Git 凭证；如果没有传入真实值，则保留占位符模板。安装到 OpenClaw 后，请立刻确认并替换成当前机器自己的值：",
       "- `__CLAW_FRIDGE_GIT_USERNAME__`：SSH 用户名，通常是 `git`。",
       "- `__CLAW_FRIDGE_GIT_PRIVATE_KEY_PATH__`：私钥文件绝对路径，例如 `~/.ssh/id_ed25519`。",
       "- 推荐替换命令：`perl -0pi -e 's/__CLAW_FRIDGE_GIT_USERNAME__/git/g; s#__CLAW_FRIDGE_GIT_PRIVATE_KEY_PATH__#/Users/you/.ssh/id_ed25519#g' ~/.openclaw/skills/<skill-name>/SKILL.md`",
@@ -449,6 +463,34 @@ function buildCredentialPlaceholderSection(config: IceBoxSkillConfig): string[] 
   }
 
   return [];
+}
+
+function replaceAllPlaceholders(markdown: string, replacements: Array<[string, string | null | undefined]>): string {
+  return replacements.reduce((nextMarkdown, [placeholder, value]) => {
+    if (!value?.trim()) {
+      return nextMarkdown;
+    }
+
+    return nextMarkdown.split(placeholder).join(value.trim());
+  }, markdown);
+}
+
+function applyResolvedGitCredentials(markdown: string, config: IceBoxSkillConfig, options?: SkillDocumentOptions): string {
+  if (config.gitAuthMethod === "https-token") {
+    return replaceAllPlaceholders(markdown, [
+      ["__CLAW_FRIDGE_GIT_USERNAME__", options?.gitUsername],
+      ["__CLAW_FRIDGE_GIT_TOKEN__", options?.gitToken],
+    ]);
+  }
+
+  if (config.gitAuthMethod === "ssh-key") {
+    return replaceAllPlaceholders(markdown, [
+      ["__CLAW_FRIDGE_GIT_USERNAME__", options?.gitUsername],
+      ["__CLAW_FRIDGE_GIT_PRIVATE_KEY_PATH__", options?.gitPrivateKeyPath],
+    ]);
+  }
+
+  return markdown;
 }
 
 function buildGitModeInstructions(config: IceBoxSkillConfig): string {
@@ -940,13 +982,15 @@ export function buildSkillMarkdown(config: IceBoxSkillConfig, origin?: string, o
         : [buildUploadModeInstructions(config, uploadUrl), ...(includeGitCredentials ? ["", ...buildCredentialPlaceholderSection(config)] : [])].join("\n"),
   ].join("\n");
 
+  const resolvedBody = includeGitCredentials ? applyResolvedGitCredentials(body, config, options) : body;
+
   return [
     "---",
     `name: ${skillName}`,
     `description: ${escapeYamlString(description)}`,
     "---",
     "",
-    body,
+    resolvedBody,
     "",
   ].join("\n");
 }

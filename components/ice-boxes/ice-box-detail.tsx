@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { readApiPayload, toOperationNotice, toRequestFailureNotice, type OperationNotice } from "@/lib/api-client";
 import { useMounted } from "@/hooks/use-mounted";
 import { isEncryptionEnabled } from "@/lib/backup-encryption";
-import { getIceBoxHistory, shouldFallbackToServer } from "@/lib/git-client";
+import { getIceBoxHistory, loadStoredGitCredentials, shouldFallbackToServer } from "@/lib/git-client";
 import {
   calculateIceBoxReminderSnapshot,
   getIceBoxReminderPresetMeta,
@@ -550,12 +550,35 @@ export function IceBoxDetail({ id }: { id: string }) {
     lastBackupAt: effectiveLastBackupAt,
   });
   const origin = window.location.origin;
+  const storedGitCredentials =
+    iceBox.skillConfig.gitAuthMethod === "https-token" ? loadStoredGitCredentials(iceBox.skillConfig.repository) : null;
+  const resolvedGitUsername =
+    iceBox.skillConfig.gitAuthMethod === "https-token"
+      ? gitConfig.auth.method === "https-token" && gitConfig.repository.trim() === iceBox.skillConfig.repository
+        ? gitConfig.auth.username.trim() || storedGitCredentials?.username || iceBox.skillConfig.gitUsername
+        : storedGitCredentials?.username || iceBox.skillConfig.gitUsername
+      : gitConfig.auth.method === "ssh-key" && gitConfig.repository.trim() === iceBox.skillConfig.repository
+        ? gitConfig.auth.username.trim() || "git"
+        : iceBox.skillConfig.gitUsername;
+  const resolvedGitToken =
+    iceBox.skillConfig.gitAuthMethod === "https-token"
+      ? gitConfig.auth.method === "https-token" && gitConfig.repository.trim() === iceBox.skillConfig.repository
+        ? gitConfig.auth.token.trim() || storedGitCredentials?.token || null
+        : storedGitCredentials?.token || null
+      : null;
+  const resolvedGitPrivateKeyPath = null;
   const skillLink = buildSkillLink(origin, iceBox.skillConfig, {
     includeGitCredentials: includeGitCredentialsInSkill,
+    gitUsername: resolvedGitUsername,
+    gitToken: resolvedGitToken,
+    gitPrivateKeyPath: resolvedGitPrivateKeyPath,
   });
   const restoreSkillLink = buildSkillLink(origin, iceBox.skillConfig, {
     mode: "restore",
     includeGitCredentials: includeGitCredentialsInSkill,
+    gitUsername: resolvedGitUsername,
+    gitToken: resolvedGitToken,
+    gitPrivateKeyPath: resolvedGitPrivateKeyPath,
   });
   const uploadUrl = buildUploadUrl(origin, iceBox.uploadPath);
   const recoveryScriptUrl = `${origin}/recovery.sh`;
@@ -567,8 +590,8 @@ export function IceBoxDetail({ id }: { id: string }) {
     `--target-dir '/absolute/path/to/target-root'`,
     ...(iceBox.skillConfig.gitAuthMethod === "https-token"
       ? [
-          `--username '${includeGitCredentialsInSkill ? "__CLAW_FRIDGE_GIT_USERNAME__" : "<your-git-username>"}'`,
-          `--token '${includeGitCredentialsInSkill ? "__CLAW_FRIDGE_GIT_TOKEN__" : "<your-git-token>"}'`,
+          `--username '${includeGitCredentialsInSkill ? resolvedGitUsername ?? "__CLAW_FRIDGE_GIT_USERNAME__" : "<your-git-username>"}'`,
+          `--token '${includeGitCredentialsInSkill ? resolvedGitToken ?? "__CLAW_FRIDGE_GIT_TOKEN__" : "<your-git-token>"}'`,
         ]
       : []),
     ...(iceBox.skillConfig.gitAuthMethod === "ssh-key"
@@ -858,7 +881,7 @@ export function IceBoxDetail({ id }: { id: string }) {
             <p className="font-medium text-zinc-900 dark:text-zinc-100">{backupModeMeta.label}</p>
             <p className="mt-2">{backupModeMeta.description}</p>
             <p className="mt-4 text-zinc-500 dark:text-zinc-400">
-              这里同时提供备份 Skill、恢复 Skill 和新机器一键恢复命令。勾选后不会直接塞真实凭证，只会在文档里带上占位符，安装后再手动替换。
+              这里同时提供备份 Skill、恢复 Skill 和新机器一键恢复命令。勾选后会优先带上首页已保存的 Git 凭证；如果当前没有可用凭证，则回退为占位符模板。
             </p>
             <label className="mt-4 inline-flex items-center gap-3 text-sm font-medium text-zinc-700 dark:text-zinc-200">
               <input

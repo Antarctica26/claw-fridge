@@ -9,6 +9,9 @@ import type {
 export interface BuildSkillLinkOptions {
   mode?: "backup" | "restore";
   includeGitCredentials?: boolean;
+  gitUsername?: string | null;
+  gitToken?: string | null;
+  gitPrivateKeyPath?: string | null;
 }
 
 const statusMeta: Record<IceBoxStatus, { label: string; description: string }> = {
@@ -115,6 +118,18 @@ export function buildSkillLink(origin: string, skillConfig: IceBoxSkillConfig, o
 
   if (options?.includeGitCredentials) {
     params.set("includeGitCredentials", "1");
+
+    if (options.gitUsername?.trim()) {
+      params.set("gitUsername", options.gitUsername.trim());
+    }
+
+    if (options.gitToken?.trim()) {
+      params.set("gitToken", options.gitToken.trim());
+    }
+
+    if (options.gitPrivateKeyPath?.trim()) {
+      params.set("gitPrivateKeyPath", options.gitPrivateKeyPath.trim());
+    }
   }
 
   return `${origin}/skill?${params.toString()}`;
