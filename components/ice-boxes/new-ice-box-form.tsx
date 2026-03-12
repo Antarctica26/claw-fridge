@@ -85,8 +85,8 @@ const flowSteps = [
 export function NewIceBoxForm() {
   const router = useRouter();
   const mounted = useMounted();
-  const hasHydratedAppStore = useAppStore((state) => state.hasHydrated);
-  const hasHydratedIceBoxStore = useIceBoxStore((state) => state.hasHydrated);
+  // 不再等待 hydration
+  const hasHydrated = mounted;
   const gitConfig = useAppStore((state) => state.gitConfig);
   const createIceBox = useIceBoxStore((state) => state.createIceBox);
   const isCreating = useIceBoxStore((state) => state.isCreating);
@@ -102,7 +102,6 @@ export function NewIceBoxForm() {
   const [machineIdTouched, setMachineIdTouched] = useState(false);
   const [error, setError] = useState<OperationNotice | null>(null);
 
-  const hasHydrated = mounted && hasHydratedAppStore && hasHydratedIceBoxStore;
   const normalizedMachineId = useMemo(() => slugifySegment(machineId), [machineId]);
   const previewBranch = useMemo(() => `${iceBoxBranchPrefix}/${normalizedMachineId || "machine-id"}`, [normalizedMachineId]);
   const hasGitConfig = Boolean(gitConfig.repository.trim());

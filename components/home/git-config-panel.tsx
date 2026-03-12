@@ -134,7 +134,7 @@ function ResultDetails({ details, label = "查看细节" }: { details: string; l
 
 export function GitConfigPanel() {
   const mounted = useMounted();
-  const hasHydrated = useAppStore((state) => state.hasHydrated);
+  // const hasHydrated = useAppStore((state) => state.hasHydrated);
   const persistedConfig = useAppStore((state) => state.gitConfig);
   const lastGitTestResult = useAppStore((state) => state.lastGitTestResult);
   const lastGitInitResult = useAppStore((state) => state.lastGitInitResult);
@@ -150,10 +150,10 @@ export function GitConfigPanel() {
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (hasHydrated) {
+    if (mounted) {
       setDraftConfig(persistedConfig);
     }
-  }, [hasHydrated, persistedConfig]);
+  }, [mounted, persistedConfig]);
 
   const repositoryKind = useMemo(() => {
     if (!draftConfig.repository.trim()) {
@@ -306,7 +306,7 @@ export function GitConfigPanel() {
     setDraftConfig(persistedConfig);
   };
 
-  if (!mounted || !hasHydrated) {
+  if (!mounted) {
     return (
       <section className="fridge-panel">
         <div className="h-6 w-40 animate-pulse rounded-full bg-zinc-200/80 dark:bg-white/10" />

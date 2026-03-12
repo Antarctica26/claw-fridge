@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { readApiPayload, toOperationNotice, toRequestFailureNotice } from "@/lib/api-client";
 import { DEFAULT_GIT_CONFIG, normalizeGitConfig, withUpdatedGitConfigTimestamp } from "@/lib/git-config";
-import { createEncryptedPersistStorage } from "@/lib/secure-storage";
+// import { createEncryptedPersistStorage } from "@/lib/secure-storage";
 import type {
   AppState,
   GitConfigInitResult,
@@ -135,11 +135,31 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "claw-fridge-app-store",
-      storage: createEncryptedPersistStorage<PersistedAppState>(),
-      partialize: (state): PersistedAppState => ({
+      // 自定义 storage，处理旧的加密数据
+      storage: {
+        getItem: (name) => {
+          if (typeof window === "undefined") return null;
+          const raw = localStorage.getItem(name);
+          if (!raw) return null;
+          try {
+            return JSON.parse(raw);
+          } catch {
+            // 旧的加密数据无法解析，直接清理
+            localStorage.removeItem(name);
+            return null;
+          }
+        },
+        setItem: (name, value) => {
+          localStorage.setItem(name, JSON.stringify(value));
+        },
+        removeItem: (name) => {
+          localStorage.removeItem(name);
+        },
+      },
+      partialize: (state) => ({
         projectName: state.projectName,
         gitConfig: state.gitConfig,
-      }),
+      }) as AppState,
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);
       },
