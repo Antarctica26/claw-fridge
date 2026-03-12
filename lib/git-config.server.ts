@@ -322,9 +322,10 @@ async function testSshRepository(config: GitRepositoryConfig): Promise<GitConfig
 
   const repository = withSshUsername(config.repository, config.auth.username);
   const sshEnvironment = await prepareSshEnvironment(config.auth);
+  const gitPath = process.platform === "darwin" ? "/usr/bin/git" : "git";
 
   try {
-    const result = await execFileAsync("git", ["ls-remote", "--symref", repository, "HEAD"], {
+    const result = await execFileAsync(gitPath, ["ls-remote", "--symref", repository, "HEAD"], {
       env: sshEnvironment.env,
       timeout: 15000,
       maxBuffer: 1024 * 1024,
@@ -335,7 +336,7 @@ async function testSshRepository(config: GitRepositoryConfig): Promise<GitConfig
     let hasFridgeConfig = false;
     try {
       const branchResult = await execFileAsync(
-        "git",
+        gitPath,
         ["ls-remote", "--exit-code", "--heads", repository, fridgeConfigBranch],
         {
           env: sshEnvironment.env,
@@ -376,7 +377,10 @@ export async function runGitCommand(
   } = {},
 ): Promise<{ stdout: string; stderr: string }> {
   try {
-    const result = await execFileAsync("git", args, {
+    // 使用完整路径避免在某些环境下找不到 git 命令
+    const gitPath = process.platform === "darwin" ? "/usr/bin/git" : "git";
+
+    const result = await execFileAsync(gitPath, args, {
       cwd: options.cwd,
       env: options.env,
       timeout: options.timeout ?? 30000,
