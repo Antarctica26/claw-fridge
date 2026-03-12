@@ -431,6 +431,7 @@ export interface AppState {
   integrations: Integration[];
   gitConfig: GitRepositoryConfig;
   hasHydrated: boolean;
+  hasInitializedFridgeConfig: boolean;
   lastGitTestResult: GitConfigTestResult | null;
   lastGitInitResult: GitConfigInitResult | null;
   setProjectName: (projectName: string) => void;

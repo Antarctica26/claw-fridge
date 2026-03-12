@@ -16,6 +16,7 @@ import type {
 interface PersistedAppState {
   projectName: string;
   gitConfig: GitRepositoryConfig;
+  hasInitializedFridgeConfig: boolean;
 }
 
 const defaultIntegrations: Integration[] = [
@@ -33,6 +34,7 @@ const defaultState = {
   integrations: defaultIntegrations,
   gitConfig: DEFAULT_GIT_CONFIG,
   hasHydrated: false,
+  hasInitializedFridgeConfig: false,
   lastGitTestResult: null as GitConfigTestResult | null,
   lastGitInitResult: null as GitConfigInitResult | null,
 };
@@ -46,18 +48,25 @@ export const useAppStore = create<AppState>()(
       saveGitConfig: (gitConfig) => {
         set({
           gitConfig: withUpdatedGitConfigTimestamp(gitConfig),
+          hasInitializedFridgeConfig: false,
           lastGitTestResult: null,
           lastGitInitResult: null,
         });
       },
       testGitConfig: async (gitConfig) => {
         const result = await testGitConnection(normalizeGitConfig(gitConfig));
-        set({ lastGitTestResult: result });
+        set({
+          lastGitTestResult: result,
+          hasInitializedFridgeConfig: result.ok && Boolean(result.hasFridgeConfig),
+        });
         return result;
       },
       initializeFridgeConfig: async (gitConfig) => {
         const result = await initFridgeConfig(normalizeGitConfig(gitConfig));
-        set({ lastGitInitResult: result });
+        set({
+          lastGitInitResult: result,
+          hasInitializedFridgeConfig: result.ok,
+        });
         return result;
       },
       clearGitTestResult: () => set({ lastGitTestResult: null }),
@@ -89,6 +98,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         projectName: state.projectName,
         gitConfig: state.gitConfig,
+        hasInitializedFridgeConfig: state.hasInitializedFridgeConfig,
       }) as AppState,
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);
@@ -102,6 +112,7 @@ export const useAppStore = create<AppState>()(
           gitConfig: typedPersistedState.gitConfig
             ? normalizeGitConfig(typedPersistedState.gitConfig)
             : currentState.gitConfig,
+          hasInitializedFridgeConfig: typedPersistedState.hasInitializedFridgeConfig ?? currentState.hasInitializedFridgeConfig,
         };
       },
     },
