@@ -14,6 +14,7 @@ import {
   getGitUsernamePlaceholder,
 } from "@/lib/git-config";
 import { fridgeConfigBranch } from "@/lib/fridge-config.constants";
+import { clearStoredGitCredentials, persistGitCredentials } from "@/lib/git-client";
 import { useAppStore } from "@/store/app-store";
 import type { GitAuthMethod, GitConfigInitResult, GitRepositoryConfig } from "@/types";
 
@@ -230,10 +231,10 @@ export function GitConfigPanel() {
       };
     }
 
-    if (repositoryKind === "remote" && effectiveConfig.auth.method === "ssh-key" && !effectiveConfig.auth.privateKey.trim()) {
+    if (repositoryKind === "remote" && repositoryFlavor === "ssh") {
       return {
         tone: "warning",
-        message: "当前是 SSH 仓库，请先填写私钥，再测试连接。",
+        message: "浏览器直连模式暂不支持 SSH，请把仓库地址改成 HTTPS 并使用 Token。",
       };
     }
 
@@ -245,7 +246,7 @@ export function GitConfigPanel() {
     }
 
     return null;
-  }, [effectiveConfig, isDirty, repositoryKind]);
+  }, [effectiveConfig, isDirty, repositoryFlavor, repositoryKind]);
 
   const clearTransientResults = () => {
     clearGitTestResult();
@@ -277,7 +278,10 @@ export function GitConfigPanel() {
 
   const handleSave = () => {
     saveGitConfig(effectiveConfig);
-    setSaveNotice("仓库配置已保存。建议先测试连接，再初始化 fridge-config。");
+    if (effectiveConfig.auth.method === "https-token" && effectiveConfig.auth.token.trim()) {
+      persistGitCredentials(effectiveConfig);
+    }
+    setSaveNotice("仓库配置已保存到本地浏览器。建议先测试连接，再初始化 fridge-config。");
   };
 
   const handleTest = async () => {
@@ -304,6 +308,26 @@ export function GitConfigPanel() {
   const handleReset = () => {
     clearTransientResults();
     setDraftConfig(persistedConfig);
+  };
+
+  const handleClearCredentials = () => {
+    clearTransientResults();
+    clearStoredGitCredentials(effectiveConfig.repository);
+    setDraftConfig((currentConfig) => ({
+      ...currentConfig,
+      auth:
+        currentConfig.auth.method === "https-token"
+          ? { ...currentConfig.auth, token: "" }
+          : currentConfig.auth,
+    }));
+    saveGitConfig({
+      ...effectiveConfig,
+      auth:
+        effectiveConfig.auth.method === "https-token"
+          ? { ...effectiveConfig.auth, token: "" }
+          : effectiveConfig.auth,
+    });
+    setSaveNotice("已清除本地保存的 Git Token。");
   };
 
   if (!mounted) {
@@ -378,8 +402,8 @@ export function GitConfigPanel() {
               <option value="https-token" disabled={repositoryFlavor === "ssh"}>
                 HTTPS Token
               </option>
-              <option value="ssh-key" disabled={repositoryFlavor === "https"}>
-                SSH Key
+              <option value="ssh-key" disabled>
+                SSH Key（浏览器模式暂不支持）
               </option>
             </select>
           </label>
@@ -424,6 +448,15 @@ export function GitConfigPanel() {
                   className="fridge-input"
                 />
               </label>
+
+              <div className="flex flex-wrap gap-3">
+                <button type="button" onClick={handleClearCredentials} className="fridge-button-ghost">
+                  清除本地凭证
+                </button>
+                <p className="text-xs leading-6 text-zinc-500 dark:text-zinc-400">
+                  Token 仅保存在当前浏览器的 localStorage，由你自己负责安全。
+                </p>
+              </div>
 
               <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-900 dark:text-amber-100">
                 <p>检测平台：{platformLabel}</p>
@@ -602,7 +635,7 @@ export function GitConfigPanel() {
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">接入建议</h3>
             <div className="space-y-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-              <p>本地仓库会通过临时克隆来初始化，不会直接改动你当前工作区。</p>
+              <p>浏览器模式不会访问本地文件系统；如需初始化，请改用远程 HTTPS 仓库。</p>
               <p>远程仓库建议先“测试连接”，再初始化专用配置分支。</p>
               <p>初始化完成后，后续 Ice Box 列表和全局配置就能写入这个分支。</p>
             </div>

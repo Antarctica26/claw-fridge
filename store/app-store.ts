@@ -2,8 +2,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { readApiPayload, toOperationNotice, toRequestFailureNotice } from "@/lib/api-client";
 import { DEFAULT_GIT_CONFIG, normalizeGitConfig, withUpdatedGitConfigTimestamp } from "@/lib/git-config";
+import { initFridgeConfig, testGitConnection } from "@/lib/git-client";
 // import { createEncryptedPersistStorage } from "@/lib/secure-storage";
 import type {
   AppState,
@@ -51,84 +51,14 @@ export const useAppStore = create<AppState>()(
         });
       },
       testGitConfig: async (gitConfig) => {
-        const normalizedConfig = normalizeGitConfig(gitConfig);
-
-        try {
-          const response = await fetch("/api/git/config/test", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(normalizedConfig),
-          });
-
-          const payload = await readApiPayload<GitConfigTestResult>(response);
-          const result: GitConfigTestResult = response.ok
-            ? payload
-            : {
-                ok: false,
-                checkedAt: new Date().toISOString(),
-                ...toOperationNotice(payload, "Git 配置测试失败。"),
-                errorCode: payload.errorCode,
-                statusCode: response.status,
-              };
-
-          set({ lastGitTestResult: result });
-
-          return result;
-        } catch (error) {
-          const notice = toRequestFailureNotice("测试 Git 连接时", error);
-          const result: GitConfigTestResult = {
-            ok: false,
-            checkedAt: new Date().toISOString(),
-            message: notice.message,
-            details: notice.details,
-          };
-
-          set({ lastGitTestResult: result });
-
-          return result;
-        }
+        const result = await testGitConnection(normalizeGitConfig(gitConfig));
+        set({ lastGitTestResult: result });
+        return result;
       },
       initializeFridgeConfig: async (gitConfig) => {
-        const normalizedConfig = normalizeGitConfig(gitConfig);
-
-        try {
-          const response = await fetch("/api/git/config/init", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(normalizedConfig),
-          });
-
-          const payload = await readApiPayload<GitConfigInitResult>(response);
-          const result: GitConfigInitResult = response.ok
-            ? payload
-            : {
-                ok: false,
-                initializedAt: new Date().toISOString(),
-                ...toOperationNotice(payload, "fridge-config 分支初始化失败。"),
-                errorCode: payload.errorCode,
-                statusCode: response.status,
-              };
-
-          set({ lastGitInitResult: result });
-
-          return result;
-        } catch (error) {
-          const notice = toRequestFailureNotice("初始化 fridge-config 分支时", error);
-          const result: GitConfigInitResult = {
-            ok: false,
-            initializedAt: new Date().toISOString(),
-            message: notice.message,
-            details: notice.details,
-          };
-
-          set({ lastGitInitResult: result });
-
-          return result;
-        }
+        const result = await initFridgeConfig(normalizeGitConfig(gitConfig));
+        set({ lastGitInitResult: result });
+        return result;
       },
       clearGitTestResult: () => set({ lastGitTestResult: null }),
       clearGitInitResult: () => set({ lastGitInitResult: null }),
