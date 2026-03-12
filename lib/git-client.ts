@@ -1,6 +1,5 @@
 import LightningFS from "@isomorphic-git/lightning-fs";
 import * as git from "isomorphic-git";
-import http from "isomorphic-git/http/web";
 import { fridgeConfigBranch, fridgeConfigFileName, fridgeConfigSchemaVersion, iceBoxesFileName } from "@/lib/fridge-config.constants";
 import { buildGitConfigErrorResult, getDefaultGitUsername, getGitPlatformAuthHelp, isHttpsRepository, isSshRepository, normalizeGitConfig } from "@/lib/git-config";
 import { iceBoxBranchPrefix } from "@/lib/git";
@@ -55,6 +54,80 @@ function formatErrorMessage(error: unknown) {
 
   return String(error || "未知错误");
 }
+
+/**
+ * 创建代理 HTTP adapter
+ * 所有 git 请求通过 /api/git/proxy 转发，解决 CORS 问题
+ */
+function createProxyHttpAdapter(): {
+  request: (req: git.GitHttpRequest) => Promise<git.GitHttpResponse>;
+} {
+  return {
+    request: async (req: git.GitHttpRequest): Promise<git.GitHttpResponse> => {
+      // 读取 body
+      let bodyContent: string | undefined;
+      if (req.body) {
+        const chunks: Uint8Array[] = [];
+        for await (const chunk of req.body) {
+          chunks.push(chunk);
+        }
+        const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const combined = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+          combined.set(chunk, offset);
+          offset += chunk.length;
+        }
+        bodyContent = Buffer.from(combined).toString("base64");
+      }
+
+      const response = await fetch("/api/git/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: req.url,
+          method: req.method || "GET",
+          headers: req.headers,
+          body: bodyContent,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Proxy request failed: ${response.status} ${response.statusText}`);
+      }
+
+      // 转换响应 body 为 AsyncIterableIterator
+      async function* bodyIterator(): AsyncIterableIterator<Uint8Array> {
+        const reader = response.body?.getReader();
+        if (!reader) return;
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            yield value;
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      }
+
+      return {
+        url: req.url,
+        method: req.method,
+        statusCode: response.status,
+        statusMessage: response.statusText,
+        headers: Object.fromEntries(
+          Array.from(response.headers.entries()).filter(([, v]) => typeof v === "string")
+        ),
+        body: bodyIterator(),
+      };
+    },
+  };
+}
+
+// 使用代理 http adapter
+const http = createProxyHttpAdapter();
 
 export class FrontendGitFallbackError extends Error {
   details?: string;
