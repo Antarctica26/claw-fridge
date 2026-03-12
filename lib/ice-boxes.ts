@@ -1,6 +1,7 @@
 import type {
   IceBoxBackupMode,
   IceBoxListItem,
+  IceBoxScheduledBackupConfig,
   IceBoxSkillConfig,
   IceBoxStatus,
   IceBoxSyncStatus,
@@ -12,6 +13,67 @@ export interface BuildSkillLinkOptions {
   gitUsername?: string | null;
   gitToken?: string | null;
   gitPrivateKeyPath?: string | null;
+}
+
+export function createDefaultScheduledBackupConfig(timezone?: string): IceBoxScheduledBackupConfig {
+  return {
+    enabled: false,
+    preset: "daily",
+    time: "03:00",
+    dayOfWeek: 1,
+    dayOfMonth: 1,
+    cronExpression: "0 3 * * *",
+    timezone: timezone?.trim() || "Asia/Shanghai",
+  };
+}
+
+export function normalizeScheduledBackupConfig(config: Partial<IceBoxScheduledBackupConfig> | null | undefined): IceBoxScheduledBackupConfig {
+  const fallback = createDefaultScheduledBackupConfig(config?.timezone);
+
+  return {
+    enabled: config?.enabled === true,
+    preset:
+      config?.preset === "daily" ||
+      config?.preset === "weekly" ||
+      config?.preset === "monthly" ||
+      config?.preset === "custom-cron"
+        ? config.preset
+        : fallback.preset,
+    time: typeof config?.time === "string" && /^\d{2}:\d{2}$/.test(config.time) ? config.time : fallback.time,
+    dayOfWeek:
+      typeof config?.dayOfWeek === "number" && Number.isFinite(config.dayOfWeek)
+        ? Math.min(7, Math.max(1, Math.round(config.dayOfWeek)))
+        : fallback.dayOfWeek,
+    dayOfMonth:
+      typeof config?.dayOfMonth === "number" && Number.isFinite(config.dayOfMonth)
+        ? Math.min(28, Math.max(1, Math.round(config.dayOfMonth)))
+        : fallback.dayOfMonth,
+    cronExpression:
+      typeof config?.cronExpression === "string" && config.cronExpression.trim()
+        ? config.cronExpression.trim()
+        : fallback.cronExpression,
+    timezone: typeof config?.timezone === "string" && config.timezone.trim() ? config.timezone.trim() : fallback.timezone,
+  };
+}
+
+export function buildScheduledBackupDescription(config: IceBoxScheduledBackupConfig) {
+  if (!config.enabled) {
+    return "未启用";
+  }
+
+  if (config.preset === "daily") {
+    return `每天 ${config.time}（${config.timezone}）`;
+  }
+
+  if (config.preset === "weekly") {
+    return `每周${["一", "二", "三", "四", "五", "六", "日"][config.dayOfWeek - 1]} ${config.time}（${config.timezone}）`;
+  }
+
+  if (config.preset === "monthly") {
+    return `每月 ${config.dayOfMonth} 日 ${config.time}（${config.timezone}）`;
+  }
+
+  return `自定义 Cron：${config.cronExpression}（${config.timezone}）`;
 }
 
 const statusMeta: Record<IceBoxStatus, { label: string; description: string }> = {

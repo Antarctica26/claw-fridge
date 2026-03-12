@@ -5,8 +5,21 @@ import {
   uploadPayloadEncryptionHeaders,
 } from "@/lib/backup-encryption";
 import { getGitPlatformAuthHelp } from "@/lib/git-config";
-import { buildSkillLink, buildUploadUrl } from "@/lib/ice-boxes";
-import type { GitAuthMethod, IceBoxBackupMode, IceBoxEncryptionConfig, IceBoxSkillConfig } from "@/types";
+import {
+  buildScheduledBackupDescription,
+  buildSkillLink,
+  buildUploadUrl,
+  createDefaultScheduledBackupConfig,
+  normalizeScheduledBackupConfig,
+} from "@/lib/ice-boxes";
+import type {
+  GitAuthMethod,
+  IceBoxBackupMode,
+  IceBoxEncryptionConfig,
+  IceBoxScheduledBackupConfig,
+  IceBoxScheduledBackupPreset,
+  IceBoxSkillConfig,
+} from "@/types";
 
 type SearchParamValue = string | string[] | undefined;
 
@@ -82,6 +95,10 @@ function isGitAuthMethod(value: unknown): value is GitAuthMethod {
   return value === "none" || value === "https-token" || value === "ssh-key";
 }
 
+function isScheduledBackupPreset(value: unknown): value is IceBoxScheduledBackupPreset {
+  return value === "daily" || value === "weekly" || value === "monthly" || value === "custom-cron";
+}
+
 function readEncryptionConfig(value: unknown, createdAt: string): IceBoxEncryptionConfig {
   if (!isRecord(value)) {
     return createDisabledEncryptionConfig(createdAt);
@@ -133,6 +150,22 @@ function readNullableString(record: Record<string, unknown>, key: string): strin
   const normalizedValue = value.trim();
 
   return normalizedValue || null;
+}
+
+function readScheduledBackupConfig(value: unknown): IceBoxScheduledBackupConfig {
+  if (!isRecord(value)) {
+    return createDefaultScheduledBackupConfig();
+  }
+
+  return normalizeScheduledBackupConfig({
+    enabled: value.enabled === true,
+    preset: isScheduledBackupPreset(value.preset) ? value.preset : undefined,
+    time: typeof value.time === "string" ? value.time : undefined,
+    dayOfWeek: typeof value.dayOfWeek === "number" ? value.dayOfWeek : undefined,
+    dayOfMonth: typeof value.dayOfMonth === "number" ? value.dayOfMonth : undefined,
+    cronExpression: typeof value.cronExpression === "string" ? value.cronExpression : undefined,
+    timezone: typeof value.timezone === "string" ? value.timezone : undefined,
+  });
 }
 
 function escapeYamlString(value: string): string {
@@ -421,6 +454,51 @@ function safelyBuildRecoveryScriptUrl(origin: string | undefined): string | null
   } catch {
     return null;
   }
+}
+
+function buildScheduledBackupCronExpression(config: IceBoxScheduledBackupConfig): string {
+  if (config.preset === "daily") {
+    const [hour, minute] = config.time.split(":");
+    return `${Number(minute)} ${Number(hour)} * * *`;
+  }
+
+  if (config.preset === "weekly") {
+    const [hour, minute] = config.time.split(":");
+    return `${Number(minute)} ${Number(hour)} * * ${config.dayOfWeek}`;
+  }
+
+  if (config.preset === "monthly") {
+    const [hour, minute] = config.time.split(":");
+    return `${Number(minute)} ${Number(hour)} ${config.dayOfMonth} * *`;
+  }
+
+  return config.cronExpression;
+}
+
+function buildScheduledBackupSection(config: IceBoxSkillConfig): string {
+  const scheduledBackup = normalizeScheduledBackupConfig(config.scheduledBackup);
+
+  if (!scheduledBackup.enabled) {
+    return [
+      "## 定时备份",
+      "",
+      "- 当前链接没有预设定时备份。安装 Skill 时，OpenClaw 必须主动询问用户是否需要定时逻辑，再决定是否继续配置 `cron`、`launchd` 或 `systemd --user`。",
+      "- 如果用户明确不需要，就保持手动执行；不要静默创建任何后台定时任务。",
+    ].join("\n");
+  }
+
+  return [
+    "## 定时备份",
+    "",
+    `- 已启用定时备份：${buildScheduledBackupDescription(scheduledBackup)}。`,
+    `- 预设类型：\`${scheduledBackup.preset}\``,
+    `- 预设时区：\`${scheduledBackup.timezone}\``,
+    `- 建议 Cron：\`${buildScheduledBackupCronExpression(scheduledBackup)}\``,
+    scheduledBackup.preset === "weekly" ? `- 每周执行日：\`${scheduledBackup.dayOfWeek}\`` : null,
+    scheduledBackup.preset === "monthly" ? `- 每月执行日：\`${scheduledBackup.dayOfMonth}\`` : null,
+    scheduledBackup.preset === "custom-cron" ? `- 自定义 Cron：\`${scheduledBackup.cronExpression}\`` : null,
+    "- OpenClaw 在完成定时逻辑配置后，必须明确告知用户：采用了哪种调度方式、何时首次触发、以及如何停用或修改。",
+  ].filter(Boolean).join("\n");
 }
 
 function buildCredentialPlaceholderSection(config: IceBoxSkillConfig): string[] {
@@ -878,6 +956,7 @@ export function parseSkillConfig(value: unknown): IceBoxSkillConfig {
     gitUsername: readNullableString(value, "gitUsername"),
     uploadPath: readNullableString(value, "uploadPath"),
     uploadToken: readNullableString(value, "uploadToken"),
+    scheduledBackup: readScheduledBackupConfig(value.scheduledBackup),
     encryption: readEncryptionConfig(value.encryption, createdAt),
     createdAt,
   };
@@ -939,6 +1018,8 @@ export function buildSkillMarkdown(config: IceBoxSkillConfig, origin?: string, o
     `- created-at: \`${config.createdAt}\``,
     `- document-mode: \`${mode}\``,
     `- include-git-credentials-placeholders: \`${includeGitCredentials ? "true" : "false"}\``,
+    `- scheduled-backup-enabled: \`${config.scheduledBackup.enabled ? "true" : "false"}\``,
+    `- scheduled-backup-summary: ${config.scheduledBackup.enabled ? `\`${buildScheduledBackupDescription(config.scheduledBackup)}\`` : "`<ask-user-during-install>`"}`,
   ];
 
   if (skillLink) {
@@ -974,6 +1055,8 @@ export function buildSkillMarkdown(config: IceBoxSkillConfig, origin?: string, o
     mode === "restore"
       ? "- Before overwrite restore, explain the target path and confirm whether the existing `.openclaw` should be backed up first."
       : "- After each backup attempt, report the branch, destination, and any actionable errors.",
+    "",
+    buildScheduledBackupSection(config),
     "",
     mode === "restore"
       ? buildRestoreModeInstructions(config, recoveryScriptUrl, includeGitCredentials)

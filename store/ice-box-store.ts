@@ -11,6 +11,7 @@ import {
 } from "@/lib/ice-box-reminders";
 import { iceBoxBranchPrefix } from "@/lib/git";
 import { normalizeGitConfig } from "@/lib/git-config";
+import { createDefaultScheduledBackupConfig, normalizeScheduledBackupConfig } from "@/lib/ice-boxes";
 import type {
   CreateIceBoxResult,
   CreateUploadTokenResult,
@@ -135,6 +136,7 @@ function normalizeIceBoxItem(item: IceBoxListItem): IceBoxListItem {
     reminder: normalizeIceBoxReminderConfig(item.reminder, item.updatedAt || item.createdAt),
     skillConfig: {
       ...item.skillConfig,
+      scheduledBackup: normalizeScheduledBackupConfig(item.skillConfig.scheduledBackup),
       encryption: item.skillConfig.encryption ?? createDisabledEncryptionConfig(item.updatedAt),
     },
   };
@@ -443,6 +445,7 @@ export const useIceBoxStore = create<IceBoxStoreState>()(
               gitUsername: readGitUsername(normalizedGitConfig.auth),
               uploadPath,
               uploadToken,
+              scheduledBackup: createDefaultScheduledBackupConfig(),
               encryption: input.encryption,
               createdAt,
             },

@@ -9,6 +9,7 @@ import {
   parseSkillConfigSearchParam,
   parseSkillDocumentModeSearchParam,
 } from "@/lib/skill-document";
+import { buildScheduledBackupDescription } from "@/lib/ice-boxes";
 
 function resolveRequestOrigin(requestHeaders: Headers): string | null {
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
@@ -113,6 +114,7 @@ export default async function SkillPage({
               <p>安装路径：`{model.installPath}`</p>
               <p>Git 认证：{model.gitAuthLabel}</p>
               <p>Git 凭证占位符：{model.includeGitCredentials ? "已携带" : "未携带"}</p>
+              <p>定时备份：{model.config.scheduledBackup.enabled ? buildScheduledBackupDescription(model.config.scheduledBackup) : "未预设，安装时主动询问"}</p>
               <p>
                 上传加密：
                 {model.config.backupMode === "upload-token"

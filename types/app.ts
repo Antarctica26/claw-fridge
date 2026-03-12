@@ -119,6 +119,18 @@ export interface IceBoxReminderSnapshot {
   isFirstBackupPending: boolean;
 }
 
+export type IceBoxScheduledBackupPreset = "daily" | "weekly" | "monthly" | "custom-cron";
+
+export interface IceBoxScheduledBackupConfig {
+  enabled: boolean;
+  preset: IceBoxScheduledBackupPreset;
+  time: string;
+  dayOfWeek: number;
+  dayOfMonth: number;
+  cronExpression: string;
+  timezone: string;
+}
+
 export interface IceBoxSkillConfig {
   version: 1;
   iceBoxId: string;
@@ -131,6 +143,7 @@ export interface IceBoxSkillConfig {
   gitUsername: string | null;
   uploadPath: string | null;
   uploadToken: string | null;
+  scheduledBackup: IceBoxScheduledBackupConfig;
   encryption: IceBoxEncryptionConfig;
   createdAt: string;
 }

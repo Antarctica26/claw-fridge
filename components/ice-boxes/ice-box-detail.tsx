@@ -13,13 +13,16 @@ import {
   normalizeIceBoxReminderConfig,
 } from "@/lib/ice-box-reminders";
 import {
+  buildScheduledBackupDescription,
   buildSkillLink,
   buildUploadUrl,
+  createDefaultScheduledBackupConfig,
   formatDateTime,
   formatLastBackupTime,
   getIceBoxBackupModeMeta,
   getIceBoxStatusMeta,
   getIceBoxSyncStatusMeta,
+  normalizeScheduledBackupConfig,
 } from "@/lib/ice-boxes";
 import { useAppStore } from "@/store/app-store";
 import { useIceBoxStore } from "@/store/ice-box-store";
@@ -28,6 +31,7 @@ import type {
   IceBoxHistoryResult,
   IceBoxReminderConfig,
   IceBoxReminderPreset,
+  IceBoxScheduledBackupConfig,
   RestoreBackupResult,
   RestorePreviewResult,
 } from "@/types";
@@ -128,6 +132,7 @@ export function IceBoxDetail({ id }: { id: string }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [hasDeleted, setHasDeleted] = useState(false);
   const [includeGitCredentialsInSkill, setIncludeGitCredentialsInSkill] = useState(false);
+  const [scheduledBackupInSkill, setScheduledBackupInSkill] = useState<IceBoxScheduledBackupConfig>(createDefaultScheduledBackupConfig());
   const [restoreTargetRootDir, setRestoreTargetRootDir] = useState("");
   const [restorePreview, setRestorePreview] = useState<RestorePreviewResult | null>(null);
   const [restoreResult, setRestoreResult] = useState<RestoreBackupResult | null>(null);
@@ -162,6 +167,48 @@ export function IceBoxDetail({ id }: { id: string }) {
     setReminderDraft(iceBox?.reminder ?? null);
     setReminderNotice(null);
   }, [iceBox]);
+
+  useEffect(() => {
+    if (!iceBox) {
+      return;
+    }
+
+    const storageKey = `claw-fridge:scheduled-backup:${iceBox.id}`;
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    try {
+      const storedValue = window.localStorage.getItem(storageKey);
+
+      if (storedValue) {
+        const parsedValue = JSON.parse(storedValue) as Partial<IceBoxScheduledBackupConfig>;
+
+        setScheduledBackupInSkill(
+          normalizeScheduledBackupConfig({
+            ...parsedValue,
+            timezone: parsedValue.timezone || browserTimezone,
+          }),
+        );
+        return;
+      }
+    } catch {
+      window.localStorage.removeItem(storageKey);
+    }
+
+    setScheduledBackupInSkill(
+      normalizeScheduledBackupConfig({
+        ...iceBox.skillConfig.scheduledBackup,
+        timezone: iceBox.skillConfig.scheduledBackup?.timezone || browserTimezone,
+      }),
+    );
+  }, [iceBox]);
+
+  useEffect(() => {
+    if (!iceBox) {
+      return;
+    }
+
+    window.localStorage.setItem(`claw-fridge:scheduled-backup:${iceBox.id}`, JSON.stringify(scheduledBackupInSkill));
+  }, [iceBox, scheduledBackupInSkill]);
 
   useEffect(() => {
     setRestoreTargetRootDir("");
@@ -567,13 +614,17 @@ export function IceBoxDetail({ id }: { id: string }) {
         : storedGitCredentials?.token || null
       : null;
   const resolvedGitPrivateKeyPath = null;
-  const skillLink = buildSkillLink(origin, iceBox.skillConfig, {
+  const skillConfigForDocument = {
+    ...iceBox.skillConfig,
+    scheduledBackup: scheduledBackupInSkill,
+  };
+  const skillLink = buildSkillLink(origin, skillConfigForDocument, {
     includeGitCredentials: includeGitCredentialsInSkill,
     gitUsername: resolvedGitUsername,
     gitToken: resolvedGitToken,
     gitPrivateKeyPath: resolvedGitPrivateKeyPath,
   });
-  const restoreSkillLink = buildSkillLink(origin, iceBox.skillConfig, {
+  const restoreSkillLink = buildSkillLink(origin, skillConfigForDocument, {
     mode: "restore",
     includeGitCredentials: includeGitCredentialsInSkill,
     gitUsername: resolvedGitUsername,
@@ -892,6 +943,145 @@ export function IceBoxDetail({ id }: { id: string }) {
               />
               安装 Skill 时携带 Git 凭证占位符
             </label>
+            <div className="mt-4 grid gap-4 rounded-[20px] border border-zinc-200/80 bg-zinc-50/70 p-4 dark:border-white/10 dark:bg-zinc-950/40">
+              <label className="inline-flex items-center gap-3 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                <input
+                  type="checkbox"
+                  checked={scheduledBackupInSkill.enabled}
+                  onChange={(event) =>
+                    setScheduledBackupInSkill((currentConfig) => ({
+                      ...currentConfig,
+                      enabled: event.target.checked,
+                    }))
+                  }
+                  className="h-4 w-4 rounded border-zinc-300 text-sky-600 focus:ring-sky-500"
+                />
+                定时备份
+              </label>
+              {scheduledBackupInSkill.enabled ? (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">定时类型</span>
+                      <select
+                        value={scheduledBackupInSkill.preset}
+                        onChange={(event) =>
+                          setScheduledBackupInSkill((currentConfig) =>
+                            normalizeScheduledBackupConfig({
+                              ...currentConfig,
+                              preset: event.target.value as IceBoxScheduledBackupConfig["preset"],
+                            }),
+                          )
+                        }
+                        className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+                      >
+                        <option value="daily">每天</option>
+                        <option value="weekly">每周</option>
+                        <option value="monthly">每月</option>
+                        <option value="custom-cron">自定义 Cron</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">时区</span>
+                      <input
+                        type="text"
+                        value={scheduledBackupInSkill.timezone}
+                        onChange={(event) =>
+                          setScheduledBackupInSkill((currentConfig) => ({
+                            ...currentConfig,
+                            timezone: event.target.value,
+                          }))
+                        }
+                        placeholder="例如 Asia/Shanghai"
+                        className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+                      />
+                    </label>
+                  </div>
+                  {scheduledBackupInSkill.preset === "custom-cron" ? (
+                    <label className="grid gap-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Cron 表达式</span>
+                      <input
+                        type="text"
+                        value={scheduledBackupInSkill.cronExpression}
+                        onChange={(event) =>
+                          setScheduledBackupInSkill((currentConfig) => ({
+                            ...currentConfig,
+                            cronExpression: event.target.value,
+                          }))
+                        }
+                        placeholder="例如 0 3 * * *"
+                        className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+                      />
+                    </label>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <label className="grid gap-2">
+                        <span className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">执行时间</span>
+                        <input
+                          type="time"
+                          value={scheduledBackupInSkill.time}
+                          onChange={(event) =>
+                            setScheduledBackupInSkill((currentConfig) => ({
+                              ...currentConfig,
+                              time: event.target.value,
+                            }))
+                          }
+                          className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+                        />
+                      </label>
+                      {scheduledBackupInSkill.preset === "weekly" ? (
+                        <label className="grid gap-2">
+                          <span className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">每周几</span>
+                          <select
+                            value={scheduledBackupInSkill.dayOfWeek}
+                            onChange={(event) =>
+                              setScheduledBackupInSkill((currentConfig) => ({
+                                ...currentConfig,
+                                dayOfWeek: Number(event.target.value),
+                              }))
+                            }
+                            className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+                          >
+                            <option value={1}>周一</option>
+                            <option value={2}>周二</option>
+                            <option value={3}>周三</option>
+                            <option value={4}>周四</option>
+                            <option value={5}>周五</option>
+                            <option value={6}>周六</option>
+                            <option value={7}>周日</option>
+                          </select>
+                        </label>
+                      ) : null}
+                      {scheduledBackupInSkill.preset === "monthly" ? (
+                        <label className="grid gap-2">
+                          <span className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">每月几号</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={28}
+                            value={scheduledBackupInSkill.dayOfMonth}
+                            onChange={(event) =>
+                              setScheduledBackupInSkill((currentConfig) => ({
+                                ...currentConfig,
+                                dayOfMonth: Math.min(28, Math.max(1, Number(event.target.value) || 1)),
+                              }))
+                            }
+                            className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                  )}
+                  <div className="rounded-2xl bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:bg-zinc-950/50 dark:text-zinc-300">
+                    当前定时策略：{buildScheduledBackupDescription(scheduledBackupInSkill)}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                  不预设定时逻辑时，生成的 Skill 文档会要求 OpenClaw 在安装时主动询问用户是否需要定时备份。
+                </p>
+              )}
+            </div>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Link
                 href={skillLink}
