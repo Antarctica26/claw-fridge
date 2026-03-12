@@ -68,6 +68,7 @@ export function IceBoxList() {
   const loadIceBoxes = useIceBoxStore((state) => state.loadIceBoxes);
   const clearError = useIceBoxStore((state) => state.clearError);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const hasCachedIceBoxes = iceBoxes.length > 0;
 
   useEffect(() => {
     if (!mounted) {
@@ -89,7 +90,7 @@ export function IceBoxList() {
     setExpandedId((currentId) => (currentId === id ? null : id));
   }
 
-  if (!mounted || (isLoading && !hasLoaded)) {
+  if (!mounted || (isLoading && !hasLoaded && !hasCachedIceBoxes)) {
     return <IceBoxListSkeleton />;
   }
 

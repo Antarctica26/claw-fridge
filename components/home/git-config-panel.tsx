@@ -181,9 +181,11 @@ export function GitConfigPanel() {
     return Boolean(effectiveConfig.repository.trim()) && !isTesting && !isInitializing;
   }, [effectiveConfig.repository, isInitializing, isTesting]);
 
+  const shouldShowInitialize = Boolean(lastGitTestResult?.ok && lastGitTestResult.hasFridgeConfig === false);
+
   const canInitialize = useMemo(() => {
-    return Boolean(effectiveConfig.repository.trim()) && !isDirty && !isTesting && !isInitializing;
-  }, [effectiveConfig.repository, isDirty, isInitializing, isTesting]);
+    return shouldShowInitialize && !isDirty && !isTesting && !isInitializing;
+  }, [isDirty, isInitializing, isTesting, shouldShowInitialize]);
 
   const clearTransientResults = () => {
     clearGitTestResult();
@@ -218,10 +220,12 @@ export function GitConfigPanel() {
     if (effectiveConfig.auth.method === "https-token" && effectiveConfig.auth.token.trim()) {
       persistGitCredentials(effectiveConfig);
     }
-    setSaveNotice("已保存");
+    setSaveNotice("已保存 Git 配置");
   };
 
   const handleTest = async () => {
+    saveGitConfig(effectiveConfig);
+    setSaveNotice("已保存 Git 配置");
     setIsTesting(true);
 
     try {
@@ -282,7 +286,10 @@ export function GitConfigPanel() {
   return (
     <section className="fridge-panel grid gap-6">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50 sm:text-3xl">Git 配置</h2>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50 sm:text-3xl">Git 配置</h2>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">填仓库信息后直接测试；只有确认不存在 `{fridgeConfigBranch}` 时才显示初始化按钮。</p>
+        </div>
       </div>
 
       <div className="grid gap-4">
@@ -365,18 +372,14 @@ export function GitConfigPanel() {
           <button type="button" onClick={handleSave} className="fridge-button-primary">
             保存配置
           </button>
-          <button type="button" onClick={handleTest} disabled={!canTest} className="fridge-button-secondary">
+          <button type="button" onClick={() => void handleTest()} disabled={!canTest} className="fridge-button-secondary">
             {isTesting ? "测试中..." : "测试连接"}
           </button>
-          <button type="button" onClick={handleInitialize} disabled={!canInitialize} className="fridge-button-secondary">
-            {isInitializing
-              ? lastGitTestResult?.hasFridgeConfig
-                ? "载入中..."
-                : "初始化中..."
-              : lastGitTestResult?.hasFridgeConfig
-                ? `载入 ${fridgeConfigBranch}`
-                : `初始化 ${fridgeConfigBranch}`}
-          </button>
+          {shouldShowInitialize ? (
+            <button type="button" onClick={() => void handleInitialize()} disabled={!canInitialize} className="fridge-button-secondary">
+              {isInitializing ? `初始化 ${fridgeConfigBranch}中...` : `初始化 ${fridgeConfigBranch}`}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={handleReset}
@@ -404,10 +407,16 @@ export function GitConfigPanel() {
             {lastGitTestResult.defaultBranch ? <p className="mt-2">默认分支：{lastGitTestResult.defaultBranch}</p> : null}
             {lastGitTestResult.hasFridgeConfig !== undefined ? (
               <p className="mt-2">
-                {fridgeConfigBranch} 分支：{lastGitTestResult.hasFridgeConfig ? "已存在" : "不存在"}
+                {fridgeConfigBranch} 分支：{lastGitTestResult.hasFridgeConfig ? "已存在，可直接进入冰盒列表" : "不存在，先初始化"}
               </p>
             ) : null}
             {lastGitTestResult.details ? <ResultDetails details={lastGitTestResult.details} /> : null}
+          </div>
+        ) : null}
+
+        {shouldShowInitialize && !lastGitInitResult ? (
+          <div className="fridge-state fridge-state--info">
+            连接已通过，但仓库里还没有 `{fridgeConfigBranch}`。点击上面的初始化按钮即可继续。
           </div>
         ) : null}
 

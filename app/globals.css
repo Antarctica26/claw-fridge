@@ -23,6 +23,9 @@
   --danger: #e64d83;
   --danger-soft: rgba(230, 77, 131, 0.12);
   --shadow-color: rgba(16, 33, 51, 0.12);
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-strong: rgba(255, 255, 255, 0.92);
+  --placeholder: #6c8494;
 }
 
 @theme inline {
@@ -56,6 +59,9 @@
     --danger: #ff7da7;
     --danger-soft: rgba(255, 125, 167, 0.16);
     --shadow-color: rgba(0, 0, 0, 0.34);
+    --surface: rgba(14, 35, 49, 0.94);
+    --surface-strong: rgba(18, 43, 60, 0.98);
+    --placeholder: #8fb1c4;
   }
 }
 
@@ -200,7 +206,7 @@ body {
 
   .fridge-button-secondary {
     border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.72);
+    background: var(--surface);
     color: var(--foreground);
   }
 
@@ -228,7 +234,7 @@ body {
   .fridge-textarea {
     @apply rounded-2xl px-4 py-3 text-sm outline-none transition;
     border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.82);
+    background: var(--surface);
     color: var(--foreground);
   }
 
@@ -236,6 +242,7 @@ body {
   .fridge-select:focus,
   .fridge-textarea:focus {
     border-color: rgba(23, 152, 216, 0.46);
+    background: var(--surface-strong);
     box-shadow: 0 0 0 4px rgba(23, 152, 216, 0.1);
   }
 
@@ -244,6 +251,17 @@ body {
   .fridge-textarea:disabled {
     cursor: not-allowed;
     opacity: 0.64;
+  }
+
+  .fridge-input::placeholder,
+  .fridge-textarea::placeholder {
+    color: var(--placeholder);
+    opacity: 1;
+  }
+
+  .fridge-select option {
+    background: var(--surface-strong);
+    color: var(--foreground);
   }
 
   .fridge-textarea {

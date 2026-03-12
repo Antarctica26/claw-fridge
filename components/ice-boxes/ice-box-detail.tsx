@@ -150,6 +150,7 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
   const [reminderNotice, setReminderNotice] = useState<string | null>(null);
   const [syncNotice, setSyncNotice] = useState<OperationNotice | null>(null);
   const [isSyncingToRemote, setIsSyncingToRemote] = useState(false);
+  const hasCachedIceBox = iceBoxes.some((item) => item.id === id);
 
   useEffect(() => {
     if (!mounted || hasLoaded) {
@@ -520,7 +521,7 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
     setReminderNotice("提醒配置已恢复为默认每周提醒。");
   }
 
-  if (!mounted || (isLoading && !hasLoaded)) {
+  if (!mounted || (isLoading && !hasLoaded && !hasCachedIceBox)) {
     return <IceBoxDetailSkeleton />;
   }
 
@@ -682,7 +683,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
         </div>
 
         <div className="fridge-panel-tint flex flex-wrap items-center gap-3 text-sm leading-6 text-zinc-700 dark:text-zinc-200">
-          <p>{embedded ? "配置、历史、恢复和 Skill 都在这里。" : "先看状态与连接信息，再去备份历史挑版本，最后在恢复面板里执行预览与恢复。"}</p>
           {iceBox.syncStatus !== "synced" ? (
             <button type="button" onClick={() => void handleSyncToRemote()} className="fridge-button-secondary" disabled={isSyncingToRemote}>
               {isSyncingToRemote ? "正在同步到远端..." : "立即同步到远端"}
@@ -770,9 +770,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
             <p className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
               {formatLastBackupTime(effectiveLastBackupAt)}
             </p>
-            <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-              后续任务可在这里继续补充手动备份、上传 token 和最近任务日志等信息。
-            </p>
           </div>
           <div className="grid gap-3 rounded-[24px] border border-zinc-200/80 bg-white p-4 dark:border-white/10 dark:bg-white/5">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -805,9 +802,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-medium text-zinc-900 dark:text-zinc-100">提醒配置</p>
-                <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                  提醒完全在本地 store 里生效：改完就持久化，详情页会立刻重算下次提醒时间和状态文案。
-                </p>
               </div>
               <label className="inline-flex items-center gap-3 text-sm font-medium text-zinc-700 dark:text-zinc-200">
                 <input
@@ -918,11 +912,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
               </button>
             </div>
 
-            <p>
-              {encryptionEnabled
-                ? "上传链路加密已启用；提醒只负责提示补做备份，不会接触或保存主密钥。"
-                : "提醒只根据创建时间 / 最近备份时间计算，不依赖额外服务端任务。"}
-            </p>
           </div>
         </div>
       </div>
@@ -933,9 +922,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
           <div className="rounded-[24px] bg-white p-5 text-sm leading-6 text-zinc-600 dark:bg-white/5 dark:text-zinc-300">
             <p className="font-medium text-zinc-900 dark:text-zinc-100">{backupModeMeta.label}</p>
             <p className="mt-2">{backupModeMeta.description}</p>
-            <p className="mt-4 text-zinc-500 dark:text-zinc-400">
-              这里同时提供备份 Skill、恢复 Skill 和新机器一键恢复命令。勾选后会优先带上首页已保存的 Git 凭证；如果当前没有可用凭证，则回退为占位符模板。
-            </p>
             <label className="mt-4 inline-flex items-center gap-3 text-sm font-medium text-zinc-700 dark:text-zinc-200">
               <input
                 type="checkbox"
@@ -1079,9 +1065,7 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
                   </div>
                 </>
               ) : (
-                <p className="text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                  不预设定时逻辑时，生成的 Skill 文档会要求 OpenClaw 在安装时主动询问用户是否需要定时备份。
-                </p>
+                <p className="text-sm leading-6 text-zinc-500 dark:text-zinc-400">未预设定时备份。</p>
               )}
             </div>
             <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -1166,9 +1150,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
             <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">备份历史</h2>
-            <p className="max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-              展示当前冰盒分支上的历史快照。可以先从这里挑一个版本，再跳到下面的恢复流程继续操作。
-            </p>
           </div>
           <button
             type="button"
@@ -1325,9 +1306,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
             <span className="text-sm text-zinc-500 dark:text-zinc-400">两种备份方案都会统一回收到 Git 分支恢复</span>
           </div>
           <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">恢复冰盒备份</h2>
-          <p className="max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-            不管当前冰盒最初走的是 Git 直推还是压缩包上传，服务端都会从仓库里的专属分支读取 `.openclaw` 快照，再恢复到你指定的目标目录。已有 `.openclaw` 不会被直接覆盖，确认后会先挪到旁边的时间戳备份目录。
-          </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="fridge-step-card">
               <div className="mb-2 flex items-center gap-3">
@@ -1410,9 +1388,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
           </div>
 
           <div className="grid gap-3 rounded-[20px] border border-dashed border-sky-500/20 p-4">
-            <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-              先点“查看恢复预览”确认目标快照确实存在，再勾选确认执行恢复。目标目录必须是绝对路径，实际写入位置会固定收口到该目录下的 `.openclaw`。
-            </p>
             {!hasConfiguredRepository ? (
               <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
                 <p className="font-medium">还没配置 Git 仓库</p>
@@ -1562,9 +1537,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
             <span className="text-sm text-zinc-500 dark:text-zinc-400">删除后会从本地冰盒列表中移除</span>
           </div>
           <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">删除这个冰盒</h2>
-          <p className="max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-            适合清理废弃机器或误建冰盒。当前实现会更新本地 store 和持久化缓存，后续接入真实仓库后可继续补上 Git 分支清理。
-          </p>
         </div>
 
         <div className="grid gap-3 rounded-[24px] bg-white/80 p-4 text-sm text-zinc-600 dark:bg-black/10 dark:text-zinc-300 sm:grid-cols-2">
@@ -1615,7 +1587,7 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-dashed border-rose-500/20 p-4">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">不再需要这个冰盒了？可以在这里把它从冷冻室清出去。</p>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">从本地列表移除当前冰盒。</p>
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}

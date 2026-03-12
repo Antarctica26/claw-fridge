@@ -1,12 +1,9 @@
 "use client";
 
-import { FridgeInitPanel } from "@/components/home/fridge-init-panel";
 import { GitConfigPanel } from "@/components/home/git-config-panel";
 import { IceBoxList } from "@/components/home/ice-box-list";
 import { useMounted } from "@/hooks/use-mounted";
 import { useAppStore } from "@/store/app-store";
-
-type HomeStep = "git-config" | "fridge-init" | "ice-boxes";
 
 function HomeSkeleton() {
   return (
@@ -34,14 +31,12 @@ export default function Home() {
   }
 
   const hasGitConfig = Boolean(gitConfig.repository.trim());
-  const step: HomeStep = !hasGitConfig ? "git-config" : hasInitializedFridgeConfig ? "ice-boxes" : "fridge-init";
 
   return (
     <main className="fridge-page">
       <div className="fridge-shell">
-        {step === "git-config" ? <GitConfigPanel /> : null}
-        {step === "fridge-init" ? <FridgeInitPanel /> : null}
-        {step === "ice-boxes" ? <IceBoxList /> : null}
+        {!hasGitConfig || !hasInitializedFridgeConfig ? <GitConfigPanel /> : null}
+        {hasGitConfig && hasInitializedFridgeConfig ? <IceBoxList /> : null}
       </div>
     </main>
   );
