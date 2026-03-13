@@ -6,6 +6,7 @@ import type {
   IceBoxStatus,
   IceBoxSyncStatus,
 } from "@/types";
+import { Base64 } from "js-base64";
 
 export interface BuildSkillLinkOptions {
   mode?: "backup" | "restore";
@@ -204,7 +205,7 @@ export function buildUploadUrl(origin: string, uploadPath: string | null) {
 export function buildSkillLink(origin: string, skillConfig: IceBoxSkillConfig, options?: BuildSkillLinkOptions) {
   const params = new URLSearchParams();
 
-  params.set("config", JSON.stringify(skillConfig));
+  params.set("config", Base64.encode(JSON.stringify(skillConfig)));
 
   if (options?.mode === "restore") {
     params.set("mode", "restore");

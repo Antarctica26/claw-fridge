@@ -20,6 +20,7 @@ import type {
   IceBoxScheduledBackupPreset,
   IceBoxSkillConfig,
 } from "@/types";
+import { Base64 } from "js-base64";
 
 type SearchParamValue = string | string[] | undefined;
 
@@ -977,14 +978,30 @@ export function parseSkillConfigSearchParam(config: SearchParamValue): IceBoxSki
     throw new SkillDocumentError("missing-config", "缺少 `config` 参数，暂时无法生成 Skill 文档。");
   }
 
+  let decodedValue = rawValue;
+
   try {
-    return parseSkillConfig(JSON.parse(rawValue));
+    decodedValue = Base64.decode(rawValue);
+  } catch {
+    decodedValue = rawValue;
+  }
+
+  try {
+    return parseSkillConfig(JSON.parse(decodedValue));
   } catch (error) {
     if (error instanceof SkillDocumentError) {
       throw error;
     }
 
-    throw new SkillDocumentError("invalid-json", "`config` 不是合法 JSON，无法解析 Skill 配置。");
+    try {
+      return parseSkillConfig(JSON.parse(rawValue));
+    } catch (legacyError) {
+      if (legacyError instanceof SkillDocumentError) {
+        throw legacyError;
+      }
+
+      throw new SkillDocumentError("invalid-json", "`config` 不是合法 JSON，无法解析 Skill 配置。");
+    }
   }
 }
 
