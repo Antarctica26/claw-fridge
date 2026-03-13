@@ -4,7 +4,15 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { createDisabledEncryptionConfig } from "@/lib/backup-encryption";
 import { readApiPayload, toOperationNotice, toRequestFailureNotice } from "@/lib/api-client";
-import { addIceBox, deleteIceBox as deleteIceBoxFromGitClient, listIceBoxes, syncIceBoxBranch, updateIceBox } from "@/lib/git-client";
+import {
+  addIceBox,
+  deleteIceBox as deleteIceBoxFromGitClient,
+  getIceBoxHistory,
+  listIceBoxes,
+  shouldFallbackToServer,
+  syncIceBoxBranch,
+  updateIceBox,
+} from "@/lib/git-client";
 import {
   createDefaultIceBoxReminderConfig,
   normalizeIceBoxReminderConfig,
@@ -16,6 +24,7 @@ import type {
   CreateIceBoxResult,
   CreateUploadTokenResult,
   GitRepositoryConfig,
+  IceBoxHistoryResult,
   IceBoxListItem,
   IceBoxRecord,
   IceBoxStoreState,
@@ -188,6 +197,60 @@ function markIceBoxSyncState(
   });
 }
 
+function applyIceBoxBackupState(item: IceBoxListItem, lastBackupAt: string | null): IceBoxListItem {
+  return normalizeIceBoxItem({
+    ...item,
+    lastBackupAt,
+    status: lastBackupAt ? "healthy" : "attention",
+  });
+}
+
+async function readIceBoxLatestBackupAt(item: IceBoxListItem, gitConfig: GitRepositoryConfig): Promise<string | null> {
+  try {
+    const entries = await getIceBoxHistory(gitConfig, item.id);
+    return entries[0]?.committedAt ?? null;
+  } catch (error) {
+    if (!shouldFallbackToServer(error)) {
+      return item.lastBackupAt;
+    }
+
+    try {
+      const response = await fetch(`/api/ice-boxes/${item.id}/history`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          machineId: item.machineId,
+          branch: item.branch,
+          gitConfig,
+          limit: 1,
+        }),
+      });
+      const payload = await readApiPayload<IceBoxHistoryResult>(response);
+
+      if (!response.ok || !payload.ok) {
+        return item.lastBackupAt;
+      }
+
+      return payload.entries?.[0]?.committedAt ?? null;
+    } catch {
+      return item.lastBackupAt;
+    }
+  }
+}
+
+async function hydrateIceBoxesBackupState(
+  items: IceBoxListItem[],
+  gitConfig: GitRepositoryConfig,
+): Promise<IceBoxListItem[]> {
+  const hydratedItems = await Promise.all(
+    items.map(async (item) => applyIceBoxBackupState(item, await readIceBoxLatestBackupAt(item, gitConfig))),
+  );
+
+  return hydratedItems;
+}
+
 async function syncIceBoxWithRemote(
   item: IceBoxListItem,
   gitConfig: GitRepositoryConfig,
@@ -317,7 +380,8 @@ export const useIceBoxStore = create<IceBoxStoreState>()(
             },
           );
 
-          const mergedIceBoxes = new Map(remoteIceBoxes.map((item) => [item.id, item]));
+          const hydratedRemoteIceBoxes = await hydrateIceBoxesBackupState(remoteIceBoxes, normalizedGitConfig);
+          const mergedIceBoxes = new Map(hydratedRemoteIceBoxes.map((item) => [item.id, item]));
 
           for (const localItem of get().iceBoxes) {
             if (localItem.syncStatus !== "synced" && !mergedIceBoxes.has(localItem.id)) {
@@ -761,11 +825,7 @@ export const useIceBoxStore = create<IceBoxStoreState>()(
               return item;
             }
 
-            return normalizeIceBoxItem({
-              ...item,
-              lastBackupAt,
-              status: lastBackupAt ? "healthy" : "attention",
-            });
+            return applyIceBoxBackupState(item, lastBackupAt);
           }),
         }));
       },
