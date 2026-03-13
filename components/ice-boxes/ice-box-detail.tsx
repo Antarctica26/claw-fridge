@@ -116,6 +116,36 @@ function ResultDetails({ details }: { details: string }) {
   );
 }
 
+function CopyableCodeBlock({
+  label,
+  value,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-zinc-200/80 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-medium text-zinc-700 dark:text-zinc-200">{label}</p>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="inline-flex items-center justify-center rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:text-zinc-200 dark:hover:border-sky-500 dark:hover:text-sky-300"
+        >
+          {copied ? "已复制" : "复制"}
+        </button>
+      </div>
+      <pre className="mt-3 max-h-32 overflow-auto break-all rounded-2xl bg-zinc-50 p-3 font-mono text-xs whitespace-pre-wrap text-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-200">
+        {value}
+      </pre>
+    </div>
+  );
+}
+
 type IceBoxHistoryViewState = "idle" | "ready" | "branch-missing" | "error";
 
 interface IceBoxHistoryCacheRecord {
@@ -206,8 +236,10 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
   const [reminderNotice, setReminderNotice] = useState<string | null>(null);
   const [syncNotice, setSyncNotice] = useState<OperationNotice | null>(null);
   const [isSyncingToRemote, setIsSyncingToRemote] = useState(false);
+  const [copiedField, setCopiedField] = useState<"skill" | "restore-skill" | "recovery-command" | null>(null);
   const historyEntriesRef = useRef<IceBoxHistoryEntry[]>([]);
   const historyViewStateRef = useRef<IceBoxHistoryViewState>("idle");
+  const historyRequestKeyRef = useRef<string | null>(null);
   const hasCachedIceBox = iceBoxes.some((item) => item.id === id);
 
   useEffect(() => {
@@ -225,6 +257,18 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
 
     void loadIceBoxes(gitConfig);
   }, [hasLoaded, loadIceBoxes, mounted, gitConfig]);
+
+  useEffect(() => {
+    if (!copiedField) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setCopiedField(null);
+    }, 1800);
+
+    return () => window.clearTimeout(timer);
+  }, [copiedField]);
 
   const iceBox = useMemo(() => {
     return iceBoxes.find((item) => item.id === id) ?? null;
@@ -369,7 +413,23 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
     setIsDeleting(false);
   }
 
+  async function handleCopy(value: string, field: "skill" | "restore-skill" | "recovery-command") {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+    } catch {
+      setCopiedField(null);
+    }
+  }
+
   const loadHistory = useCallback(async (targetIceBoxId: string, machineId: string, branch: string) => {
+    const requestKey = `${targetIceBoxId}:${machineId}:${branch}`;
+
+    if (historyRequestKeyRef.current === requestKey) {
+      return;
+    }
+
+    historyRequestKeyRef.current = requestKey;
     const shouldShowSilentRefresh =
       historyEntriesRef.current.length > 0 || historyViewStateRef.current !== "idle";
 
@@ -444,6 +504,7 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
       setHistoryError(toRequestFailureNotice("读取备份历史时", actionError));
       setHasLoadedHistory(true);
     } finally {
+      historyRequestKeyRef.current = null;
       setIsLoadingHistory(false);
       if (shouldShowSilentRefresh) {
         finishSilentRefresh("备份历史");
@@ -456,7 +517,7 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
   const iceBoxBranch = iceBox?.branch;
 
   useEffect(() => {
-    if (!mounted || !iceBoxId || !iceBoxMachineId || !iceBoxBranch || !hasConfiguredRepository || isLoadingHistory) {
+    if (!mounted || !iceBoxId || !iceBoxMachineId || !iceBoxBranch || !hasConfiguredRepository) {
       return;
     }
 
@@ -467,7 +528,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
     iceBoxBranch,
     iceBoxId,
     iceBoxMachineId,
-    isLoadingHistory,
     loadHistory,
     mounted,
   ]);
@@ -745,6 +805,18 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
       ? [`--ssh-key '${includeGitCredentialsInSkill ? "__CLAW_FRIDGE_GIT_PRIVATE_KEY_PATH__" : "<your-private-key-path>"}'`]
       : []),
   ].join(" ");
+  const headerChips = [
+    {
+      key: `backup-mode:${iceBox.backupMode}`,
+      label: backupModeMeta.label,
+      className: "fridge-chip fridge-chip--ocean",
+    },
+    {
+      key: `sync-status:${iceBox.syncStatus}`,
+      label: syncMeta.shortLabel,
+      className: `fridge-chip ${iceBox.syncStatus === "synced" ? "fridge-chip--success" : "fridge-chip--warning"}`,
+    },
+  ];
 
   return (
     <section className="grid gap-6">
@@ -756,13 +828,11 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
                 ← 返回冰盒列表
               </Link>
             ) : null}
-            <span className="fridge-chip fridge-chip--ocean">{backupModeMeta.label}</span>
-            <span className={`fridge-chip ${iceBox.backupMode === "upload-token" ? "fridge-chip--coral" : "fridge-chip--success"}`}>
-              {iceBox.backupMode === "upload-token" ? "上传模式" : "Git 直推"}
-            </span>
-            <span className={`fridge-chip ${iceBox.syncStatus === "synced" ? "fridge-chip--success" : "fridge-chip--warning"}`}>
-              {syncMeta.shortLabel}
-            </span>
+            {headerChips.map((chip) => (
+              <span key={chip.key} className={chip.className}>
+                {chip.label}
+              </span>
+            ))}
           </div>
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-3">
@@ -1175,13 +1245,30 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
               </Link>
             </div>
           </div>
-          <div className="rounded-[24px] border border-dashed border-zinc-300 p-5 text-sm leading-6 text-zinc-500 dark:border-white/10 dark:text-zinc-400">
-            <p>备份 Skill 链接</p>
-            <p className="mt-2 break-all font-mono text-xs text-zinc-800 dark:text-zinc-200">{skillLink}</p>
-            <p className="mt-4">恢复 Skill 链接</p>
-            <p className="mt-2 break-all font-mono text-xs text-zinc-800 dark:text-zinc-200">{restoreSkillLink}</p>
-            <p className="mt-4">新机器一键恢复命令</p>
-            <p className="mt-2 break-all font-mono text-xs text-zinc-800 dark:text-zinc-200">{recoveryCommand}</p>
+          <div className="grid gap-3 rounded-[24px] border border-dashed border-zinc-300 p-5 text-sm leading-6 text-zinc-500 dark:border-white/10 dark:text-zinc-400">
+            <CopyableCodeBlock
+              label="备份 Skill 链接"
+              value={skillLink}
+              copied={copiedField === "skill"}
+              onCopy={() => void handleCopy(skillLink, "skill")}
+            />
+            <CopyableCodeBlock
+              label="恢复 Skill 链接"
+              value={restoreSkillLink}
+              copied={copiedField === "restore-skill"}
+              onCopy={() => void handleCopy(restoreSkillLink, "restore-skill")}
+            />
+            <CopyableCodeBlock
+              label="新机器一键恢复命令"
+              value={recoveryCommand}
+              copied={copiedField === "recovery-command"}
+              onCopy={() => void handleCopy(recoveryCommand, "recovery-command")}
+            />
+            {copiedField ? (
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
+                已复制到剪贴板。
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -1416,9 +1503,12 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
             <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.24em] text-sky-700 dark:text-sky-300">
               Restore
             </span>
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">两种备份方案都会统一回收到 Git 分支恢复</span>
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">把选中的 `.openclaw` 快照恢复到当前机器指定目录</span>
           </div>
           <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">恢复冰盒备份</h2>
+          <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+            这不是说明卡片，是真的本机恢复入口：会从仓库读取所选快照，并写回目标目录下的 `.openclaw`。
+          </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="fridge-step-card">
               <div className="mb-2 flex items-center gap-3">
