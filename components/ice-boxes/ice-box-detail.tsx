@@ -891,11 +891,7 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="grid gap-4 rounded-[24px] border border-zinc-200/80 bg-zinc-50/70 p-5 dark:border-white/10 dark:bg-zinc-950/40">
           <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">{t("detail.basicInfo")}</h2>
-          <dl className="grid gap-3 text-sm text-zinc-600 dark:text-zinc-300 sm:grid-cols-2">
-            <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
-              <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.iceBoxName")}</dt>
-              <dd className="mt-2 font-medium text-zinc-900 dark:text-zinc-100">{iceBox.name}</dd>
-            </div>
+          <dl className="grid gap-3 text-sm text-zinc-600 dark:text-zinc-300 sm:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
               <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.machineId")}</dt>
               <dd className="mt-2 font-mono text-xs text-zinc-800 dark:text-zinc-200">{iceBox.machineId}</dd>
@@ -908,21 +904,13 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
               <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.backupMode")}</dt>
               <dd className="mt-2 font-medium text-zinc-900 dark:text-zinc-100">{backupModeMeta.label}</dd>
             </div>
-            <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5 sm:col-span-2">
+            <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5 sm:col-span-2 xl:col-span-3">
               <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.repository")}</dt>
               <dd className="mt-2 break-all font-mono text-xs text-zinc-900 dark:text-zinc-100">{iceBox.skillConfig.repository}</dd>
             </div>
-            <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
-              <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.backupBranch")}</dt>
-              <dd className="mt-2 break-all font-mono text-xs text-zinc-900 dark:text-zinc-100">{iceBox.skillConfig.branch}</dd>
-            </div>
-            <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
-              <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.iceBoxId")}</dt>
-              <dd className="mt-2 break-all font-mono text-xs text-zinc-900 dark:text-zinc-100">{iceBox.skillConfig.iceBoxId}</dd>
-            </div>
             {iceBox.backupMode === "upload-token" ? (
               <>
-                <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5 sm:col-span-2">
+                <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5 sm:col-span-2 xl:col-span-3">
                   <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.uploadUrl")}</dt>
                   <dd className="mt-2 break-all font-mono text-xs text-zinc-900 dark:text-zinc-100">{uploadUrl ?? t("common.notGenerated")}</dd>
                 </div>
@@ -930,7 +918,7 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
                   <dt className="text-xs uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">{t("detail.uploadToken")}</dt>
                   <dd className="mt-2 break-all font-mono text-xs text-amber-900 dark:text-amber-100">{iceBox.skillConfig.uploadToken}</dd>
                 </div>
-                <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
+                <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5 sm:col-span-2">
                   <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.encryptionInfo")}</dt>
                   <dd className="mt-2 text-sm text-zinc-900 dark:text-zinc-100">
                     {encryptionEnabled ? t("detail.encryptionEnabled") : t("common.disabled")}
@@ -958,17 +946,16 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
               <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.remoteSyncStatus")}</dt>
               <dd className="mt-2 font-medium text-zinc-900 dark:text-zinc-100">{syncMeta.label}</dd>
             </div>
-            <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
+            <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5 sm:col-span-2">
               <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.lastRemoteSync")}</dt>
               <dd className="mt-2 font-medium text-zinc-900 dark:text-zinc-100">{formatDateTime(iceBox.lastSyncAt, locale)}</dd>
             </div>
-            <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
-              <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.createdAt")}</dt>
-              <dd className="mt-2 font-medium text-zinc-900 dark:text-zinc-100">{formatDateTime(iceBox.createdAt, locale)}</dd>
-            </div>
-            <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
+            <div className="rounded-2xl bg-white px-4 py-3 dark:bg-white/5 sm:col-span-2 xl:col-span-3">
               <dt className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">{t("detail.updatedAt")}</dt>
               <dd className="mt-2 font-medium text-zinc-900 dark:text-zinc-100">{formatDateTime(iceBox.updatedAt, locale)}</dd>
+              <dd className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {t("detail.createdAt")}：{formatDateTime(iceBox.createdAt, locale)}
+              </dd>
             </div>
           </dl>
         </div>
