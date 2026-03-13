@@ -795,6 +795,8 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
   });
   const uploadUrl = buildUploadUrl(origin, iceBox.uploadPath);
   const recoveryScriptUrl = `${origin}/recovery.sh`;
+  const shouldWarnMissingGitToken =
+    iceBox.skillConfig.gitAuthMethod === "https-token" && includeGitCredentialsInSkill && !resolvedGitToken;
   const recoveryCommand = [
     `curl -fsSL ${recoveryScriptUrl} | bash -s --`,
     `--repository '${iceBox.skillConfig.repository}'`,
@@ -804,7 +806,7 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
     ...(iceBox.skillConfig.gitAuthMethod === "https-token"
       ? [
           `--username '${includeGitCredentialsInSkill ? resolvedGitUsername ?? "__CLAW_FRIDGE_GIT_USERNAME__" : "<your-git-username>"}'`,
-          `--token '${includeGitCredentialsInSkill ? resolvedGitToken ?? "__CLAW_FRIDGE_GIT_TOKEN__" : "<your-git-token>"}'`,
+          `--token '${includeGitCredentialsInSkill ? resolvedGitToken ?? "<your-git-token>" : "<your-git-token>"}'`,
         ]
       : []),
     ...(iceBox.skillConfig.gitAuthMethod === "ssh-key"
@@ -1313,6 +1315,11 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
               onCopy={() => void handleCopy(recoveryCommand, "recovery-command")}
               t={t}
             />
+            {shouldWarnMissingGitToken ? (
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                {t("detail.recoveryCommandMissingGitToken")}
+              </div>
+            ) : null}
             {copiedField ? (
               <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
                 {t("common.copied")}

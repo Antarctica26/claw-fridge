@@ -164,6 +164,7 @@
     "openBackupSkill": "打开备份 Skill",
     "openRestoreSkill": "打开恢复 Skill",
     "recoveryCommand": "新机器一键恢复命令",
+    "recoveryCommandMissingGitToken": "⚠️ 未检测到 Git token，请手动替换命令中的 `<your-git-token>` 占位符。",
     "refreshing": "正在刷新...",
     "refreshHistory": "刷新历史",
     "gitRepoNotConfigured": "还没配置 Git 仓库",

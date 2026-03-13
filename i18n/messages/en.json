@@ -164,6 +164,7 @@
     "openBackupSkill": "Open backup Skill",
     "openRestoreSkill": "Open restore Skill",
     "recoveryCommand": "One-click restore command for a new machine",
+    "recoveryCommandMissingGitToken": "⚠️ No Git token was detected. Please replace the `<your-git-token>` placeholder in the command manually.",
     "refreshing": "Refreshing...",
     "refreshHistory": "Refresh history",
     "gitRepoNotConfigured": "Git repository not configured yet",
