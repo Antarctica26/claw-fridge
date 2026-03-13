@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 import { execSync } from "node:child_process";
+import createNextIntlPlugin from "next-intl/plugin";
 
-// 获取 git commit hash
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+
 const getGitCommitHash = () => {
   try {
     return execSync("git rev-parse --short HEAD").toString().trim();
@@ -11,10 +13,9 @@ const getGitCommitHash = () => {
 };
 
 const nextConfig: NextConfig = {
-  /* config options here */
   env: {
     NEXT_PUBLIC_GIT_COMMIT_HASH: getGitCommitHash(),
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

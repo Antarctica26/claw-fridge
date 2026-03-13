@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
+import { getLocale, getMessages } from "next-intl/server";
 import { Footer } from "@/components/footer";
 import { Providers } from "@/components/providers";
 import { ThemeLanguageSwitch } from "@/components/theme-language-switch";
-import { defaultLocale, isLocale, localeCookieName, type Locale } from "@/i18n/config";
+import type { Locale } from "@/i18n/config";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -22,23 +22,13 @@ export const metadata: Metadata = {
   description: "Git-based OpenClaw configuration backup system",
 };
 
-async function getLocale(): Promise<Locale> {
-  const cookieStore = await cookies();
-  const locale = cookieStore.get(localeCookieName)?.value;
-  return locale && isLocale(locale) ? locale : defaultLocale;
-}
-
-async function getMessages(locale: Locale) {
-  return (await import(`@/i18n/messages/${locale}.json`)).default;
-}
-
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const locale = await getLocale();
-  const messages = await getMessages(locale);
+  const locale = (await getLocale()) as Locale;
+  const messages = await getMessages({ locale });
 
   return (
     <html lang={locale === "zh" ? "zh-CN" : "en"} suppressHydrationWarning>
