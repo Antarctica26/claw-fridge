@@ -664,6 +664,8 @@
       "writeUploadFileFailed": "Failed to write the uploaded file.",
       "backupUnchangedSkipped": "The backup content is unchanged, so commit was skipped.",
       "backupCommittedAndPushed": "The backup content was committed and pushed to the remote repository.",
+      "backupCommitStats": "Changes: {summary}",
+      "backupCommitFiles": "Files: {files}",
       "iceBoxIdMismatch": "The iceBoxId in the request body does not match the upload URL.",
       "processUploadFailed": "Failed to process the uploaded backup."
     },

@@ -664,6 +664,8 @@
       "writeUploadFileFailed": "上传文件写入失败。",
       "backupUnchangedSkipped": "备份内容无变化，已跳过提交。",
       "backupCommittedAndPushed": "备份内容已提交并推送到远程仓库。",
+      "backupCommitStats": "变更：{summary}",
+      "backupCommitFiles": "文件：{files}",
       "iceBoxIdMismatch": "请求体中的 iceBoxId 与上传地址不匹配。",
       "processUploadFailed": "处理上传备份失败。"
     },

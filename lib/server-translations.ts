@@ -35,6 +35,8 @@ const dynamicTextPatterns: Array<{
   { pattern: /^备份已恢复（快照 ([^)]+)），原有 `\.openclaw` 已先挪到旁边的时间戳备份目录。$/u, key: "api.restore.restoredWithBackup", values: ([commit]) => ({ commit }) },
   { pattern: /^备份已恢复到目标目录（快照 ([^)]+)）。$/u, key: "api.restore.restoredToTarget", values: ([commit]) => ({ commit }) },
   { pattern: /^上传文件超过限制（最大 (.+)）。$/u, key: "api.upload.fileTooLarge", values: ([max]) => ({ max }) },
+  { pattern: /^Changes: (.+)$/u, key: "api.upload.backupCommitStats", values: ([summary]) => ({ summary }) },
+  { pattern: /^Files: (.+)$/u, key: "api.upload.backupCommitFiles", values: ([files]) => ({ files }) },
   { pattern: /^(.+) 格式无效。$/u, key: "api.upload.invalidFormat", values: ([label]) => ({ label }) },
   { pattern: /^不支持的文件类型：(.+)$/u, key: "api.upload.unsupportedFileType", values: ([mimeType]) => ({ mimeType }) },
   { pattern: /^无法读取 tar\.gz 内容：(.+)$/u, key: "api.upload.readArchiveFailed", values: ([reason]) => ({ reason }) },

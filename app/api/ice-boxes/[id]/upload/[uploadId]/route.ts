@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { normalizeOperationResult, resolveResultStatus } from "@/lib/api-response";
 import { handleIceBoxArchiveUpload } from "@/lib/ice-box-upload.server";
+import { localizeOperationResult } from "@/lib/server-translations";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ export async function POST(
   const { id, uploadId } = await params;
   const result = await handleIceBoxArchiveUpload(request, id, uploadId);
 
-  return NextResponse.json(normalizeOperationResult(result), {
+  return NextResponse.json(normalizeOperationResult(await localizeOperationResult(result, request)), {
     status: resolveResultStatus(result),
   });
 }

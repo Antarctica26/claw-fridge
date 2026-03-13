@@ -956,6 +956,102 @@ async function prepareBranchCheckout(workingDirectory: string, branch: string, e
   });
 }
 
+type GitChangeKind = "added" | "modified" | "deleted";
+
+interface GitChangeSummary {
+  added: string[];
+  modified: string[];
+  deleted: string[];
+}
+
+function summarizeGitStatus(status: string): GitChangeKind {
+  if (status.startsWith("A") || status.startsWith("C")) {
+    return "added";
+  }
+
+  if (status.startsWith("D")) {
+    return "deleted";
+  }
+
+  return "modified";
+}
+
+function buildEmptyGitChangeSummary(): GitChangeSummary {
+  return {
+    added: [],
+    modified: [],
+    deleted: [],
+  };
+}
+
+async function getStagedGitChangeSummary(workingDirectory: string, env: NodeJS.ProcessEnv): Promise<GitChangeSummary> {
+  const output = (
+    await runGitCommand(["diff", "--cached", "--name-status", "--find-renames", "--find-copies"], {
+      cwd: workingDirectory,
+      env,
+    })
+  ).stdout.trim();
+
+  if (!output) {
+    return buildEmptyGitChangeSummary();
+  }
+
+  return output.split("\n").reduce<GitChangeSummary>((summary, line) => {
+    const parts = line.split("\t").filter(Boolean);
+    const status = parts[0]?.trim();
+    const targetPath = parts.at(-1)?.trim();
+
+    if (!status || !targetPath) {
+      return summary;
+    }
+
+    summary[summarizeGitStatus(status)].push(targetPath);
+    return summary;
+  }, buildEmptyGitChangeSummary());
+}
+
+function formatCompactChangeStats(summary: GitChangeSummary) {
+  return `+${summary.added.length} ~${summary.modified.length} -${summary.deleted.length}`;
+}
+
+function formatTouchedFiles(summary: GitChangeSummary) {
+  return [...summary.added, ...summary.modified, ...summary.deleted];
+}
+
+function formatFileListLine(files: string[]) {
+  if (files.length === 0) {
+    return null;
+  }
+
+  if (files.length <= 3) {
+    return `Files: ${files.join(", ")}`;
+  }
+
+  return `Files: ${files.slice(0, 3).join(", ")} +${files.length - 3} more`;
+}
+
+function buildBackupCommitMessage(summary: GitChangeSummary) {
+  const lines = [`Backup OpenClaw config · ${formatCompactChangeStats(summary)}`];
+  const fileListLine = formatFileListLine(formatTouchedFiles(summary));
+
+  if (fileListLine) {
+    lines.push("", fileListLine);
+  }
+
+  return lines.join("\n");
+}
+
+function buildBackupDetails(summary: GitChangeSummary) {
+  const lines = [`Changes: ${formatCompactChangeStats(summary)}`];
+  const fileListLine = formatFileListLine(formatTouchedFiles(summary));
+
+  if (fileListLine) {
+    lines.push(fileListLine);
+  }
+
+  return lines.join("\n");
+}
+
 async function commitBackupToGit(record: UploadTokenRecord, sourceOpenClawDirectory: string) {
   const prepared = await prepareInitializationEnvironment(record.gitConfig);
   let tempDirectory: string | undefined;
@@ -996,7 +1092,11 @@ async function commitBackupToGit(record: UploadTokenRecord, sourceOpenClawDirect
       };
     }
 
-    await runGitCommand(["commit", "-m", `Backup ${record.machineId} at ${new Date().toISOString()}`], {
+    const changeSummary = await getStagedGitChangeSummary(workingDirectory, prepared.env);
+    const commitMessage = buildBackupCommitMessage(changeSummary);
+    const details = buildBackupDetails(changeSummary);
+
+    await runGitCommand(["commit", "-m", commitMessage], {
       cwd: workingDirectory,
       env: prepared.env,
     });
@@ -1016,6 +1116,7 @@ async function commitBackupToGit(record: UploadTokenRecord, sourceOpenClawDirect
       pushed: true,
       commit,
       message: "备份内容已提交并推送到远程仓库。",
+      details,
     };
   } finally {
     await prepared.cleanup();
