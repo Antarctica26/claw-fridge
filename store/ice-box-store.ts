@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useAppStore } from "@/store/app-store";
 import { createDisabledEncryptionConfig } from "@/lib/backup-encryption";
 import { readApiPayload, toOperationNotice, toRequestFailureNotice } from "@/lib/api-client";
 import {
@@ -342,7 +343,13 @@ export const useIceBoxStore = create<IceBoxStoreState>()(
           return;
         }
 
+        const shouldShowSilentRefresh = get().iceBoxes.length > 0 || get().hasLoaded;
+
         set({ isLoading: true, error: null });
+
+        if (shouldShowSilentRefresh) {
+          useAppStore.getState().startSilentRefresh("冰盒列表");
+        }
 
         const normalizedGitConfig = normalizeGitConfig(gitConfig);
 
@@ -353,6 +360,9 @@ export const useIceBoxStore = create<IceBoxStoreState>()(
             isLoading: false,
             error: null,
           });
+          if (shouldShowSilentRefresh) {
+            useAppStore.getState().finishSilentRefresh("冰盒列表");
+          }
           return;
         }
 
@@ -404,6 +414,10 @@ export const useIceBoxStore = create<IceBoxStoreState>()(
             isLoading: false,
             error: null,
           });
+        } finally {
+          if (shouldShowSilentRefresh) {
+            useAppStore.getState().finishSilentRefresh("冰盒列表");
+          }
         }
       },
       createIceBox: async (input) => {

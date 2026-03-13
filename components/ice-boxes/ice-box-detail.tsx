@@ -167,6 +167,8 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
   const mounted = useMounted();
   const router = useRouter();
   const gitConfig = useAppStore((state) => state.gitConfig);
+  const startSilentRefresh = useAppStore((state) => state.startSilentRefresh);
+  const finishSilentRefresh = useAppStore((state) => state.finishSilentRefresh);
   const iceBoxes = useIceBoxStore((state) => state.iceBoxes);
   // const hasHydrated = useIceBoxStore((state) => state.hasHydrated);
   const hasLoaded = useIceBoxStore((state) => state.hasLoaded);
@@ -358,8 +360,14 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
   }
 
   const loadHistory = useCallback(async (targetIceBoxId: string, machineId: string, branch: string) => {
+    const shouldShowSilentRefresh = historyEntries.length > 0 || historyViewState !== "idle";
+
     setIsLoadingHistory(true);
     setHistoryError(null);
+
+    if (shouldShowSilentRefresh) {
+      startSilentRefresh("备份历史");
+    }
 
     try {
       let entries: IceBoxHistoryEntry[] = [];
@@ -426,8 +434,11 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
       setHasLoadedHistory(true);
     } finally {
       setIsLoadingHistory(false);
+      if (shouldShowSilentRefresh) {
+        finishSilentRefresh("备份历史");
+      }
     }
-  }, [gitConfig, syncIceBoxBackupState]);
+  }, [finishSilentRefresh, gitConfig, historyEntries.length, historyViewState, startSilentRefresh, syncIceBoxBackupState]);
 
   useEffect(() => {
     if (!mounted || !iceBox || !hasConfiguredRepository || isLoadingHistory) {
@@ -1309,11 +1320,6 @@ export function IceBoxDetail({ id, embedded = false }: { id: string; embedded?: 
           </div>
         ) : null}
 
-        {isLoadingHistory && historyEntries.length > 0 ? (
-          <div className="rounded-2xl border border-zinc-200/80 bg-white/70 px-4 py-3 text-sm text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
-            正在后台刷新备份历史，列表会在拿到新结果后自动更新。
-          </div>
-        ) : null}
 
         {historyEntries.length > 0 ? (
           <div className="grid gap-3">

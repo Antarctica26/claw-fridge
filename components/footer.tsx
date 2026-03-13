@@ -4,7 +4,7 @@ export function Footer() {
   const commitHash = process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || "unknown";
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 z-50 border-t border-zinc-200/80 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-zinc-950/80">
+    <footer className="border-t border-zinc-200/80 bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-zinc-950/80">
       <div className="mx-auto max-w-7xl px-4 py-2">
         <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
           <span>Claw-Fridge</span>

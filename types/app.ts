@@ -433,11 +433,14 @@ export interface AppState {
   gitConfig: GitRepositoryConfig;
   hasHydrated: boolean;
   hasInitializedFridgeConfig: boolean;
+  silentRefreshingTargets: string[];
   lastGitTestResult: GitConfigTestResult | null;
   lastGitInitResult: GitConfigInitResult | null;
   setProjectName: (projectName: string) => void;
   setHydrated: (hasHydrated: boolean) => void;
   saveGitConfig: (gitConfig: GitRepositoryConfig) => void;
+  startSilentRefresh: (target: string) => void;
+  finishSilentRefresh: (target: string) => void;
   testGitConfig: (gitConfig: GitRepositoryConfig) => Promise<GitConfigTestResult>;
   initializeFridgeConfig: (gitConfig: GitRepositoryConfig) => Promise<GitConfigInitResult>;
   clearGitTestResult: () => void;

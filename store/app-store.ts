@@ -35,6 +35,7 @@ const defaultState = {
   gitConfig: DEFAULT_GIT_CONFIG,
   hasHydrated: false,
   hasInitializedFridgeConfig: false,
+  silentRefreshingTargets: [] as string[],
   lastGitTestResult: null as GitConfigTestResult | null,
   lastGitInitResult: null as GitConfigInitResult | null,
 };
@@ -52,6 +53,18 @@ export const useAppStore = create<AppState>()(
           lastGitTestResult: null,
           lastGitInitResult: null,
         });
+      },
+      startSilentRefresh: (target) => {
+        set((state) => ({
+          silentRefreshingTargets: state.silentRefreshingTargets.includes(target)
+            ? state.silentRefreshingTargets
+            : [...state.silentRefreshingTargets, target],
+        }));
+      },
+      finishSilentRefresh: (target) => {
+        set((state) => ({
+          silentRefreshingTargets: state.silentRefreshingTargets.filter((item) => item !== target),
+        }));
       },
       testGitConfig: async (gitConfig) => {
         const result = await testGitConnection(normalizeGitConfig(gitConfig));
