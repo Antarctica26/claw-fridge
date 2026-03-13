@@ -456,6 +456,7 @@ export interface IceBoxStoreState {
   error: string | null;
   setHydrated: (hasHydrated: boolean) => void;
   loadIceBoxes: (gitConfig: GitRepositoryConfig) => Promise<void>;
+  refreshIceBoxBackupStates: (gitConfig: GitRepositoryConfig) => Promise<void>;
   createIceBox: (input: CreateIceBoxInput) => Promise<CreateIceBoxResult>;
   syncIceBox: (id: string, gitConfig: GitRepositoryConfig) => Promise<SyncIceBoxResult>;
   syncPendingIceBoxes: (gitConfig: GitRepositoryConfig) => Promise<SyncPendingIceBoxesResult>;

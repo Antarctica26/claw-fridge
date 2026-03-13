@@ -70,6 +70,7 @@ export function IceBoxList() {
   const error = useIceBoxStore((state) => state.error);
   const loadIceBoxes = useIceBoxStore((state) => state.loadIceBoxes);
   const clearError = useIceBoxStore((state) => state.clearError);
+  const refreshIceBoxBackupStates = useIceBoxStore((state) => state.refreshIceBoxBackupStates);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const hasCachedIceBoxes = iceBoxes.length > 0;
@@ -81,6 +82,20 @@ export function IceBoxList() {
 
     void loadIceBoxes(useAppStore.getState().gitConfig);
   }, [gitConfigRepository, gitConfigUpdatedAt, loadIceBoxes, mounted]);
+
+  useEffect(() => {
+    if (!mounted || !gitConfigRepository || iceBoxes.length === 0) {
+      return;
+    }
+
+    void refreshIceBoxBackupStates(useAppStore.getState().gitConfig);
+
+    const intervalId = window.setInterval(() => {
+      void useIceBoxStore.getState().refreshIceBoxBackupStates(useAppStore.getState().gitConfig);
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [gitConfigRepository, iceBoxes.length, mounted, refreshIceBoxBackupStates]);
 
   const activeExpandedId = useMemo(() => {
     if (!expandedId) {

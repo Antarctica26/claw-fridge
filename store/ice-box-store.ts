@@ -23,6 +23,7 @@ import type {
   CreateIceBoxResult,
   CreateUploadTokenResult,
   GitRepositoryConfig,
+  IceBoxHistoryResult,
   IceBoxListItem,
   IceBoxRecord,
   IceBoxStoreState,
@@ -204,6 +205,32 @@ function applyIceBoxBackupState(item: IceBoxListItem, lastBackupAt: string | nul
   });
 }
 
+async function fetchLatestBackupAt(item: IceBoxListItem, gitConfig: GitRepositoryConfig): Promise<string | null> {
+  try {
+    const response = await fetch(`/api/ice-boxes/${item.id}/history`, {
+      method: "POST",
+      headers: getApiRequestHeaders({
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({
+        machineId: item.machineId,
+        branch: item.branch,
+        gitConfig,
+        limit: 1,
+      }),
+    });
+    const result = await readApiPayload<IceBoxHistoryResult>(response);
+
+    if (!response.ok || !result.ok) {
+      return item.lastBackupAt;
+    }
+
+    return result.entries?.[0]?.committedAt ?? null;
+  } catch {
+    return item.lastBackupAt;
+  }
+}
+
 function mergeIceBoxWithCachedBackupState(item: IceBoxListItem, cachedItem?: IceBoxListItem): IceBoxListItem {
   if (!cachedItem) {
     return normalizeIceBoxItem(item);
@@ -375,6 +402,8 @@ export const useIceBoxStore = create<IceBoxStoreState>()(
             isLoading: false,
             error: null,
           });
+
+          void get().refreshIceBoxBackupStates(normalizedGitConfig);
         } catch (error) {
           console.warn("Failed to load ice boxes from GitHub:", error);
           set({
@@ -387,6 +416,48 @@ export const useIceBoxStore = create<IceBoxStoreState>()(
             useAppStore.getState().finishSilentRefresh(tr("clientIceBox.iceBoxList"));
           }
         }
+      },
+      refreshIceBoxBackupStates: async (gitConfig) => {
+        const normalizedGitConfig = normalizeGitConfig(gitConfig);
+
+        if (!normalizedGitConfig.repository) {
+          return;
+        }
+
+        const currentIceBoxes = get().iceBoxes;
+
+        if (currentIceBoxes.length === 0) {
+          return;
+        }
+
+        const latestBackupTimes = await Promise.all(
+          currentIceBoxes.map(async (item) => ({
+            id: item.id,
+            lastBackupAt: await fetchLatestBackupAt(item, normalizedGitConfig),
+          })),
+        );
+
+        set((state) => {
+          let hasChanges = false;
+
+          const nextIceBoxes = state.iceBoxes.map((item) => {
+            const latestState = latestBackupTimes.find((candidate) => candidate.id === item.id);
+
+            if (!latestState) {
+              return item;
+            }
+
+            const nextStatus = latestState.lastBackupAt ? "healthy" : "attention";
+            if (item.lastBackupAt === latestState.lastBackupAt && item.status === nextStatus) {
+              return item;
+            }
+
+            hasChanges = true;
+            return applyIceBoxBackupState(item, latestState.lastBackupAt);
+          });
+
+          return hasChanges ? { iceBoxes: nextIceBoxes } : state;
+        });
       },
       createIceBox: async (input) => {
         if (get().isCreating) {
