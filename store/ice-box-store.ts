@@ -5,6 +5,7 @@ import { persist } from "zustand/middleware";
 import { useAppStore } from "@/store/app-store";
 import { createDisabledEncryptionConfig } from "@/lib/backup-encryption";
 import { getApiRequestHeaders, readApiPayload, toOperationNotice, toRequestFailureNotice } from "@/lib/api-client";
+import { getDefaultFilterConfig } from "@/lib/filter-presets";
 import {
   addIceBox,
   deleteIceBox as deleteIceBoxFromGitClient,
@@ -147,6 +148,7 @@ function normalizeIceBoxItem(item: IceBoxListItem): IceBoxListItem {
       ...item.skillConfig,
       scheduledBackup: normalizeScheduledBackupConfig(item.skillConfig.scheduledBackup),
       encryption: item.skillConfig.encryption ?? createDisabledEncryptionConfig(item.updatedAt),
+      filter: item.skillConfig.filter ?? getDefaultFilterConfig(),
     },
   };
 }
