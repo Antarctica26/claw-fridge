@@ -1,12 +1,15 @@
 import type {
   IceBoxBackupMode,
+  IceBoxFilterConfig,
   IceBoxListItem,
   IceBoxScheduledBackupConfig,
   IceBoxSkillConfig,
   IceBoxStatus,
   IceBoxSyncStatus,
+  PatternType,
 } from "@/types";
 import { Base64 } from "js-base64";
+import { getDefaultFilterConfig } from "@/lib/filter-presets";
 
 export interface BuildSkillLinkOptions {
   mode?: "backup" | "restore";
@@ -202,10 +205,50 @@ export function buildUploadUrl(origin: string, uploadPath: string | null) {
   }
 }
 
+function normalizeSkillLinkFilterConfig(filter: IceBoxSkillConfig["filter"]): IceBoxFilterConfig {
+  const defaults = getDefaultFilterConfig();
+
+  if (!filter) {
+    return defaults;
+  }
+
+  const mode = filter.mode === "disabled" || filter.mode === "blacklist" || filter.mode === "whitelist" ? filter.mode : defaults.mode;
+  const patterns = Array.isArray(filter.patterns)
+    ? filter.patterns
+        .filter((pattern) => typeof pattern?.pattern === "string" && pattern.pattern.trim())
+        .map((pattern) => ({
+          pattern: pattern.pattern.trim(),
+          type: (pattern.type === "regex" ? "regex" : "glob") as PatternType,
+          description: typeof pattern.description === "string" && pattern.description.trim() ? pattern.description.trim() : undefined,
+        }))
+    : defaults.patterns;
+  const presets = Array.isArray(filter.presets)
+    ? Array.from(
+        new Set(
+          filter.presets
+            .filter((preset): preset is string => typeof preset === "string" && preset.trim().length > 0)
+            .map((preset) => preset.trim()),
+        ),
+      )
+    : defaults.presets;
+  const inheritGitignore = typeof filter.inheritGitignore === "boolean" ? filter.inheritGitignore : defaults.inheritGitignore;
+
+  return {
+    mode,
+    patterns,
+    presets,
+    inheritGitignore,
+  };
+}
+
 export function buildSkillLink(origin: string, skillConfig: IceBoxSkillConfig, options?: BuildSkillLinkOptions) {
   const params = new URLSearchParams();
+  const normalizedSkillConfig: IceBoxSkillConfig = {
+    ...skillConfig,
+    filter: normalizeSkillLinkFilterConfig(skillConfig.filter),
+  };
 
-  params.set("config", Base64.encode(JSON.stringify(skillConfig)));
+  params.set("config", Base64.encode(JSON.stringify(normalizedSkillConfig)));
 
   if (options?.mode === "restore") {
     params.set("mode", "restore");
