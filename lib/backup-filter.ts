@@ -40,6 +40,16 @@ export function resolveFilterPatterns(config: IceBoxFilterConfig): FilterPattern
   return dedupePatterns([...presetPatterns, ...config.patterns]);
 }
 
+export function splitPatternsByType(patterns: FilterPattern[]): {
+  globPatterns: FilterPattern[];
+  regexPatterns: FilterPattern[];
+} {
+  return {
+    globPatterns: patterns.filter((pattern) => pattern.type === "glob"),
+    regexPatterns: patterns.filter((pattern) => pattern.type === "regex"),
+  };
+}
+
 export function generateGitExcludeContent(config: IceBoxFilterConfig): string {
   if (config.mode !== "blacklist") {
     return "";
